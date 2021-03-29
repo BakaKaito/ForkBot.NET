@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>9</LangVersion>
+    <Nullable>enable</Nullable>
+    <Platforms>AnyCPU</Platforms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="BotDen\FlatbuffersResource\NestDistributionEncSH.json" />
+    <None Remove="BotDen\FlatbuffersResource\NestDistributionEncSW.json" />
+    <None Remove="BotDen\FlatbuffersResource\shieldEnc.bin" />
+    <None Remove="BotDen\FlatbuffersResource\swordEnc.bin" />
+    <None Remove="Helpers\DexFlavor.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="BotDen\FlatbuffersResource\NestDistributionEncSH.json" />
+    <EmbeddedResource Include="BotDen\FlatbuffersResource\NestDistributionEncSW.json" />
+    <EmbeddedResource Include="Helpers\DexFlavor.txt" />
+    <EmbeddedResource Include="BotDen\FlatbuffersResource\shieldEnc.bin" />
+    <EmbeddedResource Include="BotDen\FlatbuffersResource\swordEnc.bin" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
+    <PackageReference Include="PKHeX.Core" Version="21.1.31" />
+    <PackageReference Include="KdSoft.FlatBuffers" Version="1.12.0" />
+    <ProjectReference Include="..\SysBot.Base\SysBot.Base.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="deps\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="PKHeX.Core.AutoMod">
+      <HintPath>deps\PKHeX.Core.AutoMod.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>
