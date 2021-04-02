@@ -2,8 +2,10 @@
 ![License](https://img.shields.io/badge/License-AGPLv3-blue.svg)
 
 ## Support Discords:
+For Specific support of this fork of ForkBot.NET repo, feel free to join!
+[<img src="https://discordapp.com/api/guilds/763280150204514304/embed.png?style=banner1">](https://discord.gg/s4FKFnq)
 
-For specific support for this fork of kwsch's SysBot.NET repo feel free to join! (No support will be provided in the official PKHeX Discord, please don't bother the devs)
+For basic support for Koi's fork of kwsch's SysBot.NET repo feel free to join! (No support will be provided in the official PKHeX Discord, please don't bother the devs)
 
 [<img src="https://discordapp.com/api/guilds/695809740428673034/embed.png?style=banner2">](https://discord.gg/KrPRNk9)
 
