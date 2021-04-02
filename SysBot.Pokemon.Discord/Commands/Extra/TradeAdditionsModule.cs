@@ -122,6 +122,40 @@ namespace SysBot.Pokemon.Discord
             await Context.AddToQueueAsync(code, Context.User.Username, sig, new PK8(), PokeRoutineType.FixOT, PokeTradeType.FixOT).ConfigureAwait(false);
         }
 
+        [Command("fixOTList")]
+        [Alias("fl", "fq")]
+        [Summary("Prints the users in the FixOT queue.")]
+        [RequireSudo]
+        public async Task GetFixListAsync()
+        {
+            string msg = Info.GetTradeList(PokeRoutineType.FixOT);
+            var embed = new EmbedBuilder();
+            embed.AddField(x =>
+            {
+                x.Name = "Pending Trades";
+                x.Value = msg;
+                x.IsInline = false;
+            });
+            await ReplyAsync("These are the users who are currently waiting:", embed: embed.Build()).ConfigureAwait(false);
+        }
+
+        [Command("TradeCordList")]
+        [Alias("tcl", "tcq")]
+        [Summary("Prints users in the TradeCord queue.")]
+        [RequireSudo]
+        public async Task GetTradeCordListAsync()
+        {
+            string msg = Info.GetTradeList(PokeRoutineType.TradeCord);
+            var embed = new EmbedBuilder();
+            embed.AddField(x =>
+            {
+                x.Name = "Pending TradeCord Trades";
+                x.Value = msg;
+                x.IsInline = false;
+            });
+            await ReplyAsync("These are the users who are currently waiting:", embed: embed.Build()).ConfigureAwait(false);
+        }
+
         [Command("specialrequest")]
         [Alias("specialrequest", "sr")]
         [Summary("Special requests for a Pokémon.")]
@@ -137,7 +171,7 @@ namespace SysBot.Pokemon.Discord
         [Summary("Special requests for a Pokémon..")]
         [RequireQueueRole(nameof(DiscordManager.RolesSpecialRequest))]
         public async Task SpecialRequestAsync([Summary("Trade Code")][Remainder] string code)
-        {
+            {
             int tradeCode = Util.ToInt32(code);
             var sig = Context.User.GetFavor();
             await Context.AddToQueueAsync(tradeCode == 0 ? Info.GetRandomTradeCode() : tradeCode, Context.User.Username, sig, new PK8(), PokeRoutineType.SpecialRequest, PokeTradeType.SpecialRequest).ConfigureAwait(false);
@@ -148,7 +182,7 @@ namespace SysBot.Pokemon.Discord
         [Summary("Special requests for a Pokémon.")]
         [RequireQueueRole(nameof(DiscordManager.RolesSpecialRequest))]
         public async Task SpecialRequestAsync()
-        {
+            {
             var code = Info.GetRandomTradeCode();
             await SpecialRequestAsync(code).ConfigureAwait(false);
         }
@@ -175,7 +209,7 @@ namespace SysBot.Pokemon.Discord
             {
                 var embedTime = new EmbedBuilder { Color = Color.DarkBlue };
                 var timeName = $"{Context.User.Username}, you're too quick!";
-                var timeValue = $"Please try again in {(timeRemaining.Seconds < 1 ? 1 : timeRemaining.Seconds):N0} {(_ = timeRemaining.Seconds > 1 ? "seconds" : "second")}!";
+                var timeValue = $"Please try again in {(timeRemaining.TotalSeconds < 1 ? 1 : timeRemaining.TotalSeconds):N0} {(_ = timeRemaining.TotalSeconds > 1 ? "seconds" : "second")}!";
                 await EmbedUtil(embedTime, timeName, timeValue).ConfigureAwait(false);
                 return;
             }
@@ -272,7 +306,7 @@ namespace SysBot.Pokemon.Discord
             TradeExtensions.TradeCordPath.Add(match.Path);
             TradeExtensions.UpdateUserInfo(TCInfo, InfoPath);
             var sig = Context.User.GetFavor();
-            await Context.AddToQueueAsync(code, Context.User.Username, sig, (PK8)pkm, PokeRoutineType.FlexTrade, PokeTradeType.TradeCord).ConfigureAwait(false);
+            await Context.AddToQueueAsync(code, Context.User.Username, sig, (PK8)pkm, PokeRoutineType.TradeCord, PokeTradeType.TradeCord).ConfigureAwait(false);
         }
 
         [Command("TradeCord")]
