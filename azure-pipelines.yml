@@ -7,7 +7,7 @@ trigger:
 - KoiTest
 
 pool:
-  name: Azure Pipelines
+  name: Default
   vmImage: 'windows-latest'
   demands:
   - msbuild
