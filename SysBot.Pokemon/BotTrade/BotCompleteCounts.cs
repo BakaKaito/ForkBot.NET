@@ -19,6 +19,7 @@ namespace SysBot.Pokemon
         private int CompletedDistribution;
         private int CompletedClones;
         private int CompletedFixOTs;
+        private int CompletedSpecialRequests;
         private int CompletedTradeCords;
         private int CompletedDumps;
         private int CompletedRaids;
@@ -42,6 +43,7 @@ namespace SysBot.Pokemon
             CompletedDistribution = Config.CompletedDistribution;
             CompletedClones = Config.CompletedClones;
             CompletedFixOTs = Config.CompletedFixOTs;
+            CompletedSpecialRequests = Config.CompletedSpecialRequests;
             CompletedTradeCords = Config.CompletedTradeCords;
             CompletedDumps = Config.CompletedDumps;
             CompletedRaids = Config.CompletedRaids;
@@ -112,6 +114,12 @@ namespace SysBot.Pokemon
             Config.CompletedFixOTs = CompletedFixOTs;
         }
 
+        public void AddCompletedSpecialRequests()
+        {
+            Interlocked.Increment(ref CompletedSpecialRequests);
+            Config.CompletedSpecialRequests = CompletedSpecialRequests;
+        }
+
         public void AddCompletedTradeCords()
         {
             Interlocked.Increment(ref CompletedTradeCords);
@@ -138,6 +146,8 @@ namespace SysBot.Pokemon
                 yield return $"Clone Trades: {CompletedClones}";
             if (CompletedFixOTs != 0)
                 yield return $"FixOT Trades: {CompletedFixOTs}";
+            if (CompletedSpecialRequests != 0)
+                yield return $"SpecialRequest Trades: {CompletedSpecialRequests}";
             if (CompletedTradeCords != 0)
                 yield return $"TradeCord Trades: {CompletedTradeCords}";
             if (CompletedDumps != 0)

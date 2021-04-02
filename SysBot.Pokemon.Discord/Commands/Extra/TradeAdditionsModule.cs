@@ -109,7 +109,7 @@ namespace SysBot.Pokemon.Discord
         {
             var code = Info.GetRandomTradeCode();
             var sig = Context.User.GetFavor();
-            await Context.AddToQueueAsync(code, Context.User.Username, sig, new PK8(), PokeRoutineType.FlexTrade, PokeTradeType.FixOT).ConfigureAwait(false);
+            await Context.AddToQueueAsync(code, Context.User.Username, sig, new PK8(), PokeRoutineType.FixOT, PokeTradeType.FixOT).ConfigureAwait(false);
         }
 
         [Command("fixOT")]
@@ -119,7 +119,38 @@ namespace SysBot.Pokemon.Discord
         public async Task FixAdOT([Summary("Trade Code")] int code)
         {
             var sig = Context.User.GetFavor();
-            await Context.AddToQueueAsync(code, Context.User.Username, sig, new PK8(), PokeRoutineType.FlexTrade, PokeTradeType.FixOT).ConfigureAwait(false);
+            await Context.AddToQueueAsync(code, Context.User.Username, sig, new PK8(), PokeRoutineType.FixOT, PokeTradeType.FixOT).ConfigureAwait(false);
+        }
+
+        [Command("specialrequest")]
+        [Alias("specialrequest", "sr")]
+        [Summary("Special requests for a Pokémon.")]
+        [RequireQueueRole(nameof(DiscordManager.RolesSpecialRequest))]
+        public async Task SpecialRequestAsync(int code)
+        {
+            var sig = Context.User.GetFavor();
+            await Context.AddToQueueAsync(code, Context.User.Username, sig, new PK8(), PokeRoutineType.SpecialRequest, PokeTradeType.SpecialRequest).ConfigureAwait(false);
+        }
+
+        [Command("specialrequest")]
+        [Alias("specialrequest", "sr")]
+        [Summary("Special requests for a Pokémon..")]
+        [RequireQueueRole(nameof(DiscordManager.RolesSpecialRequest))]
+        public async Task SpecialRequestAsync([Summary("Trade Code")][Remainder] string code)
+        {
+            int tradeCode = Util.ToInt32(code);
+            var sig = Context.User.GetFavor();
+            await Context.AddToQueueAsync(tradeCode == 0 ? Info.GetRandomTradeCode() : tradeCode, Context.User.Username, sig, new PK8(), PokeRoutineType.SpecialRequest, PokeTradeType.SpecialRequest).ConfigureAwait(false);
+        }
+
+        [Command("specialrequest")]
+        [Alias("specialrequest", "sr")]
+        [Summary("Special requests for a Pokémon.")]
+        [RequireQueueRole(nameof(DiscordManager.RolesSpecialRequest))]
+        public async Task SpecialRequestAsync()
+        {
+            var code = Info.GetRandomTradeCode();
+            await SpecialRequestAsync(code).ConfigureAwait(false);
         }
 
         [Command("TradeCordCatch")]

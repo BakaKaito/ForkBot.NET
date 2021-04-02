@@ -54,6 +54,9 @@ namespace SysBot.Pokemon
         [Category(UserBias), Description("Biases the FixOT Queue's weight based on how many users are in the queue.")]
         public int YieldMultCountFixOT { get; set; } = 100;
 
+        [Category(UserBias), Description("Biases the SpecialRequest Queue's weight based on how many users are in the queue.")]
+        public int YieldMultCountSpecialRequest { get; set; } = 100;
+
         [Category(UserBias), Description("Biases the TradeCord Queue's weight based on how many users are in the queue.")]
         public int YieldMultCountTradeCord { get; set; } = 100;
 
@@ -77,6 +80,9 @@ namespace SysBot.Pokemon
         [Category(TimeBias), Description("Checks time elapsed since the user joined the FixOT queue, and increases the queue's weight accordingly.")]
         public int YieldMultWaitFixOT { get; set; } = 1;
 
+        [Category(TimeBias), Description("Checks time elapsed since the user joined the SpecialRequest queue, and increases the queue's weight accordingly.")]
+        public int YieldMultWaitSpecialRequest { get; set; } = 1;
+
         [Category(TimeBias), Description("Checks time elapsed since the user joined the TradeCord queue, and increases the queue's weight accordingly.")]
         public int YieldMultWaitTradeCord { get; set; } = 1;
 
@@ -93,6 +99,7 @@ namespace SysBot.Pokemon
                 PokeTradeType.Seed => YieldMultCountSeedCheck,
                 PokeTradeType.Clone => YieldMultCountClone,
                 PokeTradeType.FixOT => YieldMultCountFixOT,
+                PokeTradeType.SpecialRequest => YieldMultCountSpecialRequest,
                 PokeTradeType.TradeCord => YieldMultCountTradeCord,
                 PokeTradeType.Dump => YieldMultCountDump,
                 _ => YieldMultCountTrade
@@ -106,6 +113,7 @@ namespace SysBot.Pokemon
                 PokeTradeType.Seed => YieldMultWaitSeedCheck,
                 PokeTradeType.Clone => YieldMultWaitClone,
                 PokeTradeType.FixOT => YieldMultWaitFixOT,
+                PokeTradeType.SpecialRequest => YieldMultWaitSpecialRequest,
                 PokeTradeType.TradeCord => YieldMultWaitTradeCord,
                 PokeTradeType.Dump => YieldMultWaitDump,
                 _ => YieldMultWaitTrade

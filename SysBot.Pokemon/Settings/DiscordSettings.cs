@@ -44,6 +44,9 @@ namespace SysBot.Pokemon
         [Category(Whitelists), Description("Users with this role are allowed to enter the FixOT queue.")]
         public string RoleCanFixOT { get; set; } = DefaultDisable;
 
+        [Category(Whitelists), Description("Users with this role are allowed to enter the SpecialRequest queue.")]
+        public string RoleCanSpecialRequest { get; set; } = DefaultDisable;
+
         [Category(Whitelists), Description("Users with this role are allowed to use TradeCord.")]
         public string RoleCanTradeCord { get; set; } = DefaultDisable;
         

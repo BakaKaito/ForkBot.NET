@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Linq;
 using static SysBot.Base.SwitchButton;
 using static SysBot.Pokemon.PokeDataOffsets;
+using static SysBot.Pokemon.SpecialRequests;
 
 namespace SysBot.Pokemon
 {
@@ -266,6 +267,23 @@ namespace SysBot.Pokemon
                 return await EndSeedCheckTradeAsync(poke, pk, token).ConfigureAwait(false);
             }
 
+            SpecialTradeType itemReq = SpecialTradeType.None;
+            if (poke.Type == PokeTradeType.SpecialRequest)
+                itemReq = CheckItemRequest(ref pk, this, poke, TrainerName, sav);
+            if (itemReq == SpecialTradeType.FailReturn)
+            {
+                await ExitTrade(Hub.Config, false, token).ConfigureAwait(false);
+                return PokeTradeResult.IllegalTrade;
+            }
+
+            if (poke.Type == PokeTradeType.SpecialRequest && itemReq == SpecialTradeType.None)
+            {
+                // Immediately exit, we aren't trading anything.
+                poke.SendNotification(this, "Held item was outside the bounds of the Array, or nothing was held.");
+                await ResetTradePosition(Hub.Config, token).ConfigureAwait(false);
+                return PokeTradeResult.IncorrectHeldItem;
+            }
+
             if (poke.Type == PokeTradeType.Random) // distribution
             {
                 // Allow the trade partner to do a Ledy swap.
@@ -284,6 +302,92 @@ namespace SysBot.Pokemon
                 for (int i = 0; i < 5; i++)
                     await Click(A, 0_500, token).ConfigureAwait(false);
             }
+            else if (poke.Type == PokeTradeType.Clone || itemReq != SpecialTradeType.None)
+            {
+                // Inject the shown Pokémon.
+                var clone = (PK8)pk.Clone();
+                if (itemReq != SpecialTradeType.WonderCard)
+                {
+                    if (Hub.Config.Discord.ReturnPK8s)
+                        poke.SendNotification(this, clone, "Here's what you showed me!");
+
+                    var la = new LegalityAnalysis(clone);
+                    if (!la.Valid)
+                    {
+                        Log($"Clone request has detected an invalid Pokémon: {(Species)clone.Species}");
+                        if (DumpSetting.Dump)
+                            DumpPokemon(DumpSetting.DumpFolder, "hacked", pk);
+
+                        var report = la.Report();
+                        Log(report);
+                        poke.SendNotification(this, "This Pokémon is not legal per PKHeX's legality checks. I am forbidden from cloning this. Exiting trade.");
+                        if (itemReq != SpecialTradeType.None)
+                        {
+                            poke.SendNotification(this, "SSRYour request isn't legal. Please try a different Pokémon or request.");
+                            if (!string.IsNullOrWhiteSpace(Hub.Config.Web.URIEndpoint))
+                                SpecialRequests.AddToPlayerLimit(TrainerName, -1);
+                        }
+
+                        poke.SendNotification(this, report);
+
+                        await ExitTrade(Hub.Config, true, token).ConfigureAwait(false);
+                        return PokeTradeResult.IllegalTrade;
+                    }
+
+                    if (Hub.Config.Legality.ResetHOMETracker)
+                        clone.Tracker = 0;
+
+
+                    poke.SendNotification(this, $"**Cloned your {(Species)clone.Species}!**\nNow press B to cancel your offer and trade me a Pokémon you don't want.");
+                    Log($"Cloned a {(Species)clone.Species}. Waiting for user to change their Pokémon...");
+                }
+
+                if (itemReq != SpecialTradeType.WonderCard)
+                {
+                    // Separate this out from WaitForPokemonChanged since we compare to old EC from original read.
+                    partnerFound = await ReadUntilChanged(LinkTradePartnerPokemonOffset, oldEC, 15_000, 0_200, false, token).ConfigureAwait(false);
+
+                    if (!partnerFound)
+                    {
+                        poke.SendNotification(this, "__**Change It Now Or I Am Leaving!**__");
+                        // They get one more chance.
+                        partnerFound = await ReadUntilChanged(LinkTradePartnerPokemonOffset, oldEC, 15_000, 0_200, false, token).ConfigureAwait(false);
+                    }
+
+                    var pk2 = await ReadUntilPresent(LinkTradePartnerPokemonOffset, 3_000, 1_000, token).ConfigureAwait(false);
+                    if (!partnerFound || pk2 == null || SearchUtil.HashByDetails(pk2) == SearchUtil.HashByDetails(pk))
+                    {
+                        Log("Trading partner did not change their Pokémon.");
+                        await ExitTrade(Hub.Config, true, token).ConfigureAwait(false);
+                        return PokeTradeResult.TrainerTooSlow;
+                    }
+                }
+
+                await Click(A, 0_800, token).ConfigureAwait(false);
+                await SetBoxPokemon(clone, InjectBox, InjectSlot, token, sav).ConfigureAwait(false);
+                pkm = pk;
+
+                if (itemReq == SpecialTradeType.WonderCard)
+                {
+                    poke.SendNotification(this, "SSRDistribution success!");
+                    Log($"{(Species)clone.Species} Distribution Success!");
+                }
+                else if (itemReq != SpecialTradeType.None && itemReq != SpecialTradeType.Shinify)
+                {
+                    poke.SendNotification(this, "SSRSpecial request successful!");
+                    Log($"{(Species)clone.Species} modification successful!");
+                }
+                else if (itemReq == SpecialTradeType.Shinify)
+                {
+                    poke.SendNotification(this, "Shinify success!");
+                    Log($"Successfully Shinified a {(Species)clone.Species}!");
+
+
+                    for (int i = 0; i < 5; i++)
+                        await Click(A, 0_500, token).ConfigureAwait(false);
+                }
+            }
+
             else if (poke.Type == PokeTradeType.FixOT)
             {
                 var clone = (PK8)pk.Clone();
@@ -470,6 +574,8 @@ namespace SysBot.Pokemon
                     counts.AddCompletedClones();
                 else if (poke.Type == PokeTradeType.FixOT)
                     counts.AddCompletedFixOTs();
+                else if (poke.Type == PokeTradeType.SpecialRequest)
+                    counts.AddCompletedSpecialRequests();
                 else if (poke.Type == PokeTradeType.TradeCord)
                     counts.AddCompletedTradeCords();
                 else if (poke.Type == PokeTradeType.Giveaway)

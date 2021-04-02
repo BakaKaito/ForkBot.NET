@@ -9,6 +9,8 @@
         FlexTrade,
         LinkTrade,
         SeedCheck,
+        FixOT,
+        SpecialRequest,
         Clone,
         Dump,
 
