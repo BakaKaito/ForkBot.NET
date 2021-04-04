@@ -54,5 +54,8 @@ namespace SysBot.Pokemon
 
         [Category(Received), Description("Raids Started")]
         public int CompletedRaids { get; set; }
+
+        [Category(Received), Description("Adventures Started")]
+        public int CompletedAdventures { get; set; }
     }
 }

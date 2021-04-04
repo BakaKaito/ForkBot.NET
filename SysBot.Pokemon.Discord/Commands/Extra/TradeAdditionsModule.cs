@@ -67,7 +67,7 @@ namespace SysBot.Pokemon.Discord
             var code = Info.GetRandomTradeCode();
             await GiveawayAsync(code, content).ConfigureAwait(false);
         }
-        
+
         [Command("giveaway")]
         [Alias("ga", "giveme", "gimme")]
         [Summary("Makes the bot trade you the specified giveaway Pokémon.")]
@@ -323,7 +323,7 @@ namespace SysBot.Pokemon.Discord
         [Alias("l", "list")]
         [Summary("List user's Pokémon.")]
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
-        public async Task PokeList([Summary("Species name of a Pokémon")] [Remainder] string name)
+        public async Task PokeList([Summary("Species name of a Pokémon")][Remainder] string name)
         {
             TradeCordParanoiaChecks(Context);
             var filters = name.Split('=').Length == 3 ? name.Split('=')[1].ToLower().Trim() + " " + name.Split('=')[2].ToLower().Trim() : name.Split('=').Length == 2 ? name.Split('=')[1].ToLower().Trim() : "";
@@ -402,7 +402,7 @@ namespace SysBot.Pokemon.Discord
             }
 
             bool canGmax = new ShowdownSet(ShowdownParsing.GetShowdownText(pkm)).CanGigantamax;
-            var pokeImg = PokeImg(pkm, canGmax, (uint)(pkm.Species == (int)Species.Alcremie ? pkm.Data[0xE4] : 0));
+            var pokeImg = TradeExtensions.PokeImg(pkm, canGmax);
             var embed = new EmbedBuilder { Color = pkm.IsShiny ? Color.Blue : Color.DarkBlue, ThumbnailUrl = pokeImg }.WithFooter(x => { x.Text = $"\n\n{TradeExtensions.DexFlavor(pkm.Species)}"; x.IconUrl = "https://i.imgur.com/nXNBrlr.png"; });
             var name = $"{Context.User.Username}'s {(match.Shiny ? "★" : "")}{match.Species}{match.Form} [ID: {match.ID}]";
             var value = $"\n\n{ReusableActions.GetFormattedShowdownText(pkm)}";
@@ -690,7 +690,7 @@ namespace SysBot.Pokemon.Discord
                 await Context.Message.Channel.SendMessageAsync("TID has to be 6 digits long and only contain numbers!").ConfigureAwait(false);
                 return;
             }
-            
+
             if (!int.TryParse(trainerInfo.Find(x => x.Contains("sid:")).Split(':')[1].Trim(), out int sid))
             {
                 await Context.Message.Channel.SendMessageAsync("SID has to be 4 digits long and only contain numbers!").ConfigureAwait(false);
@@ -812,7 +812,7 @@ namespace SysBot.Pokemon.Discord
         [Alias("dex")]
         [Summary("Show missing dex entries and dex stats.")]
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
-        public async Task TradeCordDex([Summary("Optional parameter \"Missing\" for missing entries.")]string mode = "")
+        public async Task TradeCordDex([Summary("Optional parameter \"Missing\" for missing entries.")] string mode = "")
         {
             TradeCordParanoiaChecks(Context);
             var embed = new EmbedBuilder { Color = Color.DarkBlue };
@@ -854,7 +854,7 @@ namespace SysBot.Pokemon.Discord
             var array = Directory.GetFiles(dir).Where(x => x.Contains(".pk8")).Select(x => int.Parse(x.Split('\\')[2].Split('-', '_')[0].Replace("★", "").Trim())).ToArray();
             array = array.OrderBy(x => x).ToArray();
             index = Indexing(array);
-            var newname = (pkm.IsShiny ? "★" + index.ToString() : index.ToString()) + $"_{(Ball)pkm.Ball}" + " - " + speciesName + form  + $"{(pkm.IsEgg ? " (Egg)" : "")}" + ".pk8";
+            var newname = (pkm.IsShiny ? "★" + index.ToString() : index.ToString()) + $"_{(Ball)pkm.Ball}" + " - " + speciesName + form + $"{(pkm.IsEgg ? " (Egg)" : "")}" + ".pk8";
             var fn = Path.Combine(dir, Util.CleanFileName(newname));
             File.WriteAllBytes(fn, pkm.DecryptedPartyData);
             TCInfo.Catches.Add(new TradeExtensions.Catch { Species = speciesName, Ball = ((Ball)pkm.Ball).ToString(), Egg = pkm.IsEgg, Form = form, ID = index, Path = fn, Shiny = pkm.IsShiny, Traded = false });
@@ -1068,27 +1068,6 @@ namespace SysBot.Pokemon.Discord
             await msg.RemoveAllReactionsAsync().ConfigureAwait(false);
         }
 
-        private string PokeImg(PKM pkm, bool canGmax, uint alcremieDeco)
-        {
-            bool md = false;
-            bool fd = false;
-            var baseLink = "https://projectpokemon.org/images/sprites-models/homeimg/poke_capture_0001_000_mf_n_00000000_f_n.png".Split('_');
-            if (TradeExtensions.GenderDependent.Contains(pkm.Species) && !canGmax && pkm.Form == 0)
-            {
-                if (pkm.Gender == 0)
-                    md = true;
-                else fd = true;
-            }
-
-            baseLink[2] = pkm.Species < 10 ? $"000{pkm.Species}" : pkm.Species < 100 && pkm.Species > 9 ? $"00{pkm.Species}" : $"0{pkm.Species}";
-            baseLink[3] = pkm.Form < 10 ? $"00{pkm.Form}" : $"0{pkm.Form}";
-            baseLink[4] = pkm.PersonalInfo.OnlyFemale ? "fo" : pkm.PersonalInfo.OnlyMale ? "mo" : pkm.PersonalInfo.Genderless ? "uk" : fd ? "fd" : md ? "md" : "mf";
-            baseLink[5] = canGmax ? "g" : "n";
-            baseLink[6] = "0000000" + (pkm.Species == (int)Species.Alcremie ? alcremieDeco : 0);
-            baseLink[8] = pkm.IsShiny ? "r.png" : "n.png";
-            return string.Join("_", baseLink);
-        }
-
         private async Task EmbedUtil(EmbedBuilder embed, string name, string value)
         {
             var splitName = name.Split(new string[] { "&^&" }, StringSplitOptions.None);
@@ -1260,7 +1239,7 @@ namespace SysBot.Pokemon.Discord
             TCRng.CatchPKM.ResetPartyStats();
             TradeCordDump(TCInfo.UserID.ToString(), TCRng.CatchPKM, out int index);
             var form = nidoranGender != string.Empty ? nidoranGender : TradeExtensions.FormOutput(TCRng.CatchPKM.Species, TCRng.CatchPKM.Form, out _);
-            var pokeImg = PokeImg(TCRng.CatchPKM, TCRng.CatchPKM.CanGigantamax, (uint)(TCRng.CatchPKM.Species == (int)Species.Alcremie ? TCRng.CatchPKM.Data[0xE4] : 0));
+            var pokeImg = TradeExtensions.PokeImg(TCRng.CatchPKM, TCRng.CatchPKM.CanGigantamax);
             var ballImg = $"https://serebii.net/itemdex/sprites/pgl/" + $"{(Ball)TCRng.CatchPKM.Ball}ball".ToLower() + ".png";
             var embed = new EmbedBuilder { Color = (TCRng.CatchPKM.IsShiny && TCRng.CatchPKM.Ball == 16) || TCRng.CatchPKM.ShinyXor == 0 ? Color.Gold : TCRng.CatchPKM.ShinyXor <= 16 ? Color.LightOrange : Color.Teal, ImageUrl = pokeImg, ThumbnailUrl = ballImg };
             var catchName = $"{Context.User.Username}'s Catch [#{TCInfo.CatchCount}]" + "&^&\nResults" + $"{(EggEmbedMsg != string.Empty ? "&^&\nEggs" : "")}";
