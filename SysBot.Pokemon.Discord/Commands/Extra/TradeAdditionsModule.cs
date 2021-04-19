@@ -17,8 +17,7 @@ namespace SysBot.Pokemon.Discord
         private static TradeQueueInfo<PK8> Info => SysCordInstance.Self.Hub.Queues.Info;
         public PokeTradeHub<PK8> Hub = SysCordInstance.Self.Hub;
         private readonly TradeExtensions.TCRng TCRng = new();
-        private TradeExtensions.TCUserInfo TCInfo = new();
-        private readonly string InfoPath = "TradeCord\\UserInfo.json";
+        private TradeExtensions.TCUserInfoRoot.TCUserInfo TCInfo = new();
         private MysteryGift? MGRngEvent = default;
         private string EggEmbedMsg = string.Empty;
         private string EventPokeType = string.Empty;
@@ -219,7 +218,8 @@ namespace SysBot.Pokemon.Discord
         {
             keyword = keyword.ToLower().Trim();
             language = language.Trim().Substring(0, 1).ToUpper() + language.Trim().Substring(1).ToLower();
-            var set = new ShowdownSet($"{keyword}(Ditto)\nLanguage: {language}\nNature: {nature.Trim()}");
+            nature = nature.Trim().Substring(0, 1).ToUpper() + nature.Trim().Substring(1).ToLower();
+            var set = new ShowdownSet($"{keyword}(Ditto)\nLanguage: {language}\nNature: {nature}");
             var template = AutoLegalityWrapper.GetTemplate(set);
             var sav = AutoLegalityWrapper.GetTrainerInfo(8);
             var pkm = sav.GetLegal(template, out var result);
@@ -249,73 +249,80 @@ namespace SysBot.Pokemon.Discord
         public async Task TradeCord()
         {
             var user = Context.User.Id.ToString();
-            TradeCordParanoiaChecks(Context);
-            TCRng.ShinyRNG += TCInfo.DexCompletionCount * 2;
-            TCRng.EggShinyRNG += TCInfo.DexCompletionCount * 2;
-            if (!SettingsCheck())
-                return;
+            await TradeCordParanoiaChecks(Context).ConfigureAwait(false);
+            async Task<bool> FuncCatch()
+            {
+                TCRng.ShinyRNG += TCInfo.DexCompletionCount * 2;
+                TCRng.EggShinyRNG += TCInfo.DexCompletionCount * 2;
+                if (!SettingsCheck())
+                    return false;
 
-            if (!Info.Hub.Config.TradeCord.TradeCordChannels.Contains(Context.Channel.Id.ToString()) && !Info.Hub.Config.TradeCord.TradeCordChannels.Equals(""))
-            {
-                await ReplyAsync($"You're typing the command in the wrong channel!").ConfigureAwait(false);
-                return;
-            }
-            else if (!TradeCordCanCatch(user, out TimeSpan timeRemaining))
-            {
-                var embedTime = new EmbedBuilder { Color = Color.DarkBlue };
-                var timeName = $"{Context.User.Username}, you're too quick!";
-                var timeValue = $"Please try again in {(timeRemaining.TotalSeconds < 1 ? 1 : timeRemaining.TotalSeconds):N0} {(_ = timeRemaining.TotalSeconds > 1 ? "seconds" : "second")}!";
-                await EmbedUtil(embedTime, timeName, timeValue).ConfigureAwait(false);
-                return;
-            }
-
-            DateTime.TryParse(Info.Hub.Config.TradeCord.EventEnd, out DateTime endTime);
-            bool ended = endTime != default && DateTime.Now > endTime;
-            if (Info.Hub.Config.TradeCord.EnableEvent && !ended)
-                EventHandler();
-            else
-            {
-                while (TCRng.SpeciesRNG == 0)
-                    TCRng.SpeciesRNG = SpeciesRand(TradeCordPK(TradeExtensions.Random.Next(1, 899), out string res), res);
-            }
-
-            List<string> trainerInfo = new();
-            trainerInfo.AddRange(new string[] { TCInfo.OTName == "" ? "" : $"OT: {TCInfo.OTName}", TCInfo.OTGender == "" ? "" : $"OTGender: {TCInfo.OTGender}", TCInfo.TID == 0 ? "" : $"TID: {TCInfo.TID}",
-                TCInfo.SID == 0 ? "" : $"SID: {TCInfo.SID}", TCInfo.Language == "" ? "" : $"Language: {TCInfo.Language}" });
-            bool egg = CanGenerateEgg(out int evo1, out int evo2) && TCRng.EggRNG > 100 - Info.Hub.Config.TradeCord.EggRate;
-            if (egg)
-            {
-                if (!await EggHandler(string.Join("\n", trainerInfo), evo1, evo2).ConfigureAwait(false))
-                    return;
-            }
-
-            if (TCRng.CatchRNG >= 100 - Info.Hub.Config.TradeCord.CatchRate)
-            {
-                var speciesName = SpeciesName.GetSpeciesNameGeneration(TCRng.SpeciesRNG, 2, 8);
-                var mgRng = MGRngEvent == default ? MysteryGiftRng() : MGRngEvent;
-                bool melmetalHack = TCRng.SpeciesRNG == (int)Species.Melmetal && TCRng.GmaxRNG >= 100 - Info.Hub.Config.TradeCord.GmaxRate;
-                if ((TradeExtensions.CherishOnly.Contains(TCRng.SpeciesRNG) || TCRng.CherishRng >= 100 - Info.Hub.Config.TradeCord.CherishRate || MGRngEvent != default || melmetalHack) && mgRng != default)
+                if (!Info.Hub.Config.TradeCord.TradeCordChannels.Contains(Context.Channel.Id.ToString()) && !Info.Hub.Config.TradeCord.TradeCordChannels.Equals(""))
                 {
-                    Enum.TryParse(TCInfo.OTGender, out Gender gender);
-                    Enum.TryParse(TCInfo.Language, out LanguageID language);
-                    var info = !trainerInfo.Contains("") ? new SimpleTrainerInfo { Gender = (int)gender, Language = (int)language, OT = TCInfo.OTName, TID = TCInfo.TID, SID = TCInfo.SID } : AutoLegalityWrapper.GetTrainerInfo(8);
-                    TCRng.CatchPKM = TradeExtensions.CherishHandler(mgRng, info);
+                    await ReplyAsync($"You're typing the command in the wrong channel!").ConfigureAwait(false);
+                    return false;
+                }
+                else if (!TradeCordCanCatch(user, out TimeSpan timeRemaining))
+                {
+                    var embedTime = new EmbedBuilder { Color = Color.DarkBlue };
+                    var timeName = $"{Context.User.Username}, you're too quick!";
+                    var timeValue = $"Please try again in {(timeRemaining.TotalSeconds < 1 ? 1 : timeRemaining.TotalSeconds):N0} {(_ = timeRemaining.TotalSeconds > 1 ? "seconds" : "second")}!";
+                    await EmbedUtil(embedTime, timeName, timeValue).ConfigureAwait(false);
+                    return false;
                 }
 
-                if (TCRng.CatchPKM.Species == 0)
-                    SetHandler(speciesName, trainerInfo);
+                TradeCordCooldown(user);
+                DateTime.TryParse(Info.Hub.Config.TradeCord.EventEnd, out DateTime endTime);
+                bool ended = endTime != default && DateTime.Now > endTime;
+                if (Info.Hub.Config.TradeCord.EnableEvent && !ended)
+                    EventHandler();
+                else
+                {
+                    while (TCRng.SpeciesRNG == 0)
+                        TCRng.SpeciesRNG = SpeciesRand(TradeCordPK(TradeExtensions.Random.Next(1, 899), out string res), res);
+                }
 
-                if (TradeExtensions.TradeEvo.Contains(TCRng.CatchPKM.Species))
-                    TCRng.CatchPKM.HeldItem = 229;
+                List<string> trainerInfo = new();
+                trainerInfo.AddRange(new string[] { TCInfo.OTName == "" ? "" : $"OT: {TCInfo.OTName}", TCInfo.OTGender == "" ? "" : $"OTGender: {TCInfo.OTGender}", TCInfo.TID == 0 ? "" : $"TID: {TCInfo.TID}",
+                TCInfo.SID == 0 ? "" : $"SID: {TCInfo.SID}", TCInfo.Language == "" ? "" : $"Language: {TCInfo.Language}" });
+                bool egg = CanGenerateEgg(out int evo1, out int evo2) && TCRng.EggRNG > 100 - Info.Hub.Config.TradeCord.EggRate;
+                if (egg)
+                {
+                    if (!await EggHandler(string.Join("\n", trainerInfo), evo1, evo2).ConfigureAwait(false))
+                        return false;
+                }
 
-                if (!await CatchHandler(speciesName).ConfigureAwait(false))
-                    return;
+                if (TCRng.CatchRNG >= 100 - Info.Hub.Config.TradeCord.CatchRate)
+                {
+                    var speciesName = SpeciesName.GetSpeciesNameGeneration(TCRng.SpeciesRNG, 2, 8);
+                    var mgRng = MGRngEvent == default ? MysteryGiftRng() : MGRngEvent;
+                    bool melmetalHack = TCRng.SpeciesRNG == (int)Species.Melmetal && TCRng.GmaxRNG >= 100 - Info.Hub.Config.TradeCord.GmaxRate;
+                    if ((TradeExtensions.CherishOnly.Contains(TCRng.SpeciesRNG) || TCRng.CherishRng >= 100 - Info.Hub.Config.TradeCord.CherishRate || MGRngEvent != default || melmetalHack) && mgRng != default)
+                    {
+                        Enum.TryParse(TCInfo.OTGender, out Gender gender);
+                        Enum.TryParse(TCInfo.Language, out LanguageID language);
+                        var info = !trainerInfo.Contains("") ? new SimpleTrainerInfo { Gender = (int)gender, Language = (int)language, OT = TCInfo.OTName, TID = TCInfo.TID, SID = TCInfo.SID } : AutoLegalityWrapper.GetTrainerInfo(8);
+                        TCRng.CatchPKM = TradeExtensions.CherishHandler(mgRng, info);
+                    }
+
+                    if (TCRng.CatchPKM.Species == 0)
+                        SetHandler(speciesName, trainerInfo);
+
+                    if (TradeExtensions.TradeEvo.Contains(TCRng.CatchPKM.Species))
+                        TCRng.CatchPKM.HeldItem = 229;
+
+                    if (!await CatchHandler(speciesName).ConfigureAwait(false))
+                        return false;
+                }
+                else await FailedCatchHandler().ConfigureAwait(false);
+
+                if (egg || TCRng.CatchRNG >= 100 - Info.Hub.Config.TradeCord.CatchRate)
+                    await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
+                return true;
             }
-            else await FailedCatchHandler().ConfigureAwait(false);
 
-            TradeCordCooldown(user);
-            if (egg || TCRng.CatchRNG >= 100 - Info.Hub.Config.TradeCord.CatchRate)
-                TradeExtensions.UpdateUserInfo(TCInfo, InfoPath);
+            if (!await FuncCatch().ConfigureAwait(false))
+                TradeExtensions.CommandInProgress.RemoveAll(x => x == TCInfo.UserID);
         }
 
         [Command("TradeCord")]
@@ -324,46 +331,53 @@ namespace SysBot.Pokemon.Discord
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
         public async Task TradeForTradeCord([Summary("Trade Code")] int code, [Summary("Numerical catch ID")] string id)
         {
-            TradeCordParanoiaChecks(Context);
-            if (!int.TryParse(id, out int _id))
+            await TradeCordParanoiaChecks(Context).ConfigureAwait(false);
+            async Task<bool> TradeFunc()
             {
-                await Context.Message.Channel.SendMessageAsync("Please enter a numerical catch ID.").ConfigureAwait(false);
-                return;
+                if (!int.TryParse(id, out int _id))
+                {
+                    await Context.Message.Channel.SendMessageAsync("Please enter a numerical catch ID.").ConfigureAwait(false);
+                    return false;
+                }
+
+                var match = TCInfo.Catches.FirstOrDefault(x => x.ID == _id && !x.Traded);
+                if (match == null)
+                {
+                    await Context.Message.Channel.SendMessageAsync("There is no Pokémon with this ID.").ConfigureAwait(false);
+                    return false;
+                }
+
+                var dcfavCheck = TCInfo.Daycare1.ID == _id || TCInfo.Daycare2.ID == _id || TCInfo.Favorites.FirstOrDefault(x => x == _id) != default;
+                if (dcfavCheck)
+                {
+                    await Context.Message.Channel.SendMessageAsync("Please remove your Pokémon from favorites and daycare before trading!").ConfigureAwait(false);
+                    return false;
+                }
+
+                var pkm = PKMConverter.GetPKMfromBytes(File.ReadAllBytes(match.Path));
+                if (pkm == null)
+                {
+                    await Context.Message.Channel.SendMessageAsync("Oops, something happened when converting your Pokémon!").ConfigureAwait(false);
+                    return false;
+                }
+
+                var la = new LegalityAnalysis(pkm);
+                if (!la.Valid || !(pkm is PK8))
+                {
+                    await Context.Message.Channel.SendMessageAsync("Oops, I cannot trade this Pokémon!").ConfigureAwait(false);
+                    return false;
+                }
+
+                match.Traded = true;
+                TradeExtensions.TradeCordPath.Add(match.Path);
+                await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
+                var sig = Context.User.GetFavor();
+                await Context.AddToQueueAsync(code, Context.User.Username, sig, (PK8)pkm, PokeRoutineType.TradeCord, PokeTradeType.TradeCord).ConfigureAwait(false);
+                return true;
             }
 
-            var match = TCInfo.Catches.FirstOrDefault(x => x.ID == _id && !x.Traded);
-            if (match == null)
-            {
-                await Context.Message.Channel.SendMessageAsync("There is no Pokémon with this ID.").ConfigureAwait(false);
-                return;
-            }
-
-            var dcfavCheck = TCInfo.Daycare1.ID == _id || TCInfo.Daycare2.ID == _id || TCInfo.Favorites.FirstOrDefault(x => x == _id) != default;
-            if (dcfavCheck)
-            {
-                await Context.Message.Channel.SendMessageAsync("Please remove your Pokémon from favorites and daycare before trading!").ConfigureAwait(false);
-                return;
-            }
-
-            var pkm = PKMConverter.GetPKMfromBytes(File.ReadAllBytes(match.Path));
-            if (pkm == null)
-            {
-                await Context.Message.Channel.SendMessageAsync("Oops, something happened when converting your Pokémon!").ConfigureAwait(false);
-                return;
-            }
-
-            var la = new LegalityAnalysis(pkm);
-            if (!la.Valid || !(pkm is PK8))
-            {
-                await Context.Message.Channel.SendMessageAsync("Oops, I cannot trade this Pokémon!").ConfigureAwait(false);
-                return;
-            }
-
-            match.Traded = true;
-            TradeExtensions.TradeCordPath.Add(match.Path);
-            TradeExtensions.UpdateUserInfo(TCInfo, InfoPath);
-            var sig = Context.User.GetFavor();
-            await Context.AddToQueueAsync(code, Context.User.Username, sig, (PK8)pkm, PokeRoutineType.TradeCord, PokeTradeType.TradeCord).ConfigureAwait(false);
+            if (!await TradeFunc().ConfigureAwait(false))
+                TradeExtensions.CommandInProgress.RemoveAll(x => x == TCInfo.UserID);
         }
 
         [Command("TradeCord")]
@@ -382,7 +396,7 @@ namespace SysBot.Pokemon.Discord
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
         public async Task PokeList([Summary("Species name of a Pokémon")][Remainder] string name)
         {
-            TradeCordParanoiaChecks(Context);
+            await TradeCordParanoiaChecks(Context, false).ConfigureAwait(false);
             var filters = name.Split('=').Length == 3 ? name.Split('=')[1].ToLower().Trim() + " " + name.Split('=')[2].ToLower().Trim() : name.Split('=').Length == 2 ? name.Split('=')[1].ToLower().Trim() : "";
             name = filters != "" ? ListNameSanitize(name.Split('=')[0].Trim()) : ListNameSanitize(name);
             if (name == "")
@@ -391,7 +405,7 @@ namespace SysBot.Pokemon.Discord
                 return;
             }
 
-            IEnumerable<TradeExtensions.Catch> matches;
+            IEnumerable<TradeExtensions.TCUserInfoRoot.Catch> matches;
             var list = TCInfo.Catches.ToList();
             if (filters != "" && !filters.Contains(" ") && !filters.Contains("shiny")) // Look for name and ball
                 matches = list.FindAll(x => filters.Contains(x.Ball.ToLower()) && (name == "Shinies" ? x.Shiny : name.Contains(x.Species + x.Form)) && !x.Traded);
@@ -437,7 +451,7 @@ namespace SysBot.Pokemon.Discord
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
         public async Task TradeCordInfo([Summary("Numerical catch ID")] string id)
         {
-            TradeCordParanoiaChecks(Context);
+            await TradeCordParanoiaChecks(Context, false).ConfigureAwait(false);
             if (!int.TryParse(id, out int _id))
             {
                 await Context.Message.Channel.SendMessageAsync("Please enter a numerical catch ID.").ConfigureAwait(false);
@@ -472,8 +486,8 @@ namespace SysBot.Pokemon.Discord
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
         public async Task MassRelease([Remainder] string species = "")
         {
-            TradeCordParanoiaChecks(Context);
-            IEnumerable<TradeExtensions.Catch> matches;
+            await TradeCordParanoiaChecks(Context).ConfigureAwait(false);
+            IEnumerable<TradeExtensions.TCUserInfoRoot.Catch> matches;
             var list = TCInfo.Catches.ToList();
             if (species.ToLower() == "cherish")
                 matches = list.FindAll(x => !x.Traded && !x.Shiny && x.Ball == "Cherish" && x.Species != "Ditto" && x.ID != TCInfo.Daycare1.ID && x.ID != TCInfo.Daycare2.ID && TCInfo.Favorites.FirstOrDefault(z => z == x.ID) == default);
@@ -489,6 +503,7 @@ namespace SysBot.Pokemon.Discord
             if (matches.Count() == 0)
             {
                 await Context.Message.Channel.SendMessageAsync(species == "" ? "Cannot find any more non-shiny, non-Ditto, non-favorite, non-event Pokémon to release." : "Cannot find anything that could be released with the specified criteria.").ConfigureAwait(false);
+                TradeExtensions.CommandInProgress.RemoveAll(x => x == TCInfo.UserID);
                 return;
             }
 
@@ -498,7 +513,7 @@ namespace SysBot.Pokemon.Discord
                 TCInfo.Catches.Remove(val);
             }
 
-            TradeExtensions.UpdateUserInfo(TCInfo, InfoPath);
+            await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
             var embed = new EmbedBuilder { Color = Color.DarkBlue };
             var name = $"{Context.User.Username}'s Mass Release";
             var value = species == "" ? "Every non-shiny Pokémon was released, excluding Ditto, favorites, events, and those in daycare." : $"Every {(species.ToLower() == "shiny" ? "shiny Pokémon" : species.ToLower() == "cherish" ? "event Pokémon" : $"non-shiny {species}")} was released, excluding favorites{(species.ToLower() == "cherish" ? "" : ", events,")} and those in daycare.";
@@ -511,33 +526,40 @@ namespace SysBot.Pokemon.Discord
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
         public async Task Release([Summary("Numerical catch ID")] string id)
         {
-            TradeCordParanoiaChecks(Context);
-            if (!int.TryParse(id, out int _id))
+            await TradeCordParanoiaChecks(Context).ConfigureAwait(false);
+            async Task<bool> FuncRelease()
             {
-                await Context.Message.Channel.SendMessageAsync("Please enter a numerical catch ID.").ConfigureAwait(false);
-                return;
+                if (!int.TryParse(id, out int _id))
+                {
+                    await Context.Message.Channel.SendMessageAsync("Please enter a numerical catch ID.").ConfigureAwait(false);
+                    return false;
+                }
+
+                var match = TCInfo.Catches.FirstOrDefault(x => x.ID == _id && !x.Traded);
+                if (match == null)
+                {
+                    await Context.Message.Channel.SendMessageAsync("Cannot find this Pokémon.").ConfigureAwait(false);
+                    return false;
+                }
+
+                if (TCInfo.Daycare1.ID == _id || TCInfo.Daycare2.ID == _id || TCInfo.Favorites.FirstOrDefault(x => x == _id) != default)
+                {
+                    await Context.Message.Channel.SendMessageAsync("Cannot release a Pokémon in daycare or favorites.").ConfigureAwait(false);
+                    return false;
+                }
+
+                var embed = new EmbedBuilder { Color = Color.DarkBlue };
+                var name = $"{Context.User.Username}'s Release";
+                var value = $"You release your {(match.Shiny ? "★" : "")}{match.Species}{match.Form}.";
+                File.Delete(match.Path);
+                TCInfo.Catches.Remove(match);
+                await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
+                await EmbedUtil(embed, name, value).ConfigureAwait(false);
+                return true;
             }
 
-            var match = TCInfo.Catches.FirstOrDefault(x => x.ID == _id && !x.Traded);
-            if (match == null)
-            {
-                await Context.Message.Channel.SendMessageAsync("Cannot find this Pokémon.").ConfigureAwait(false);
-                return;
-            }
-
-            if (TCInfo.Daycare1.ID == _id || TCInfo.Daycare2.ID == _id || TCInfo.Favorites.FirstOrDefault(x => x == _id) != default)
-            {
-                await Context.Message.Channel.SendMessageAsync("Cannot release a Pokémon in daycare or favorites.").ConfigureAwait(false);
-                return;
-            }
-
-            var embed = new EmbedBuilder { Color = Color.DarkBlue };
-            var name = $"{Context.User.Username}'s Release";
-            var value = $"You release your {(match.Shiny ? "★" : "")}{match.Species}{match.Form}.";
-            File.Delete(match.Path);
-            TCInfo.Catches.Remove(match);
-            TradeExtensions.UpdateUserInfo(TCInfo, InfoPath);
-            await EmbedUtil(embed, name, value).ConfigureAwait(false);
+            if (!await FuncRelease().ConfigureAwait(false))
+                TradeExtensions.CommandInProgress.RemoveAll(x => x == TCInfo.UserID);
         }
 
         [Command("TradeCordDaycare")]
@@ -546,21 +568,21 @@ namespace SysBot.Pokemon.Discord
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
         public async Task DaycareInfo()
         {
-            TradeCordParanoiaChecks(Context);
-            if (TCInfo.Daycare1.Species == 0 && TCInfo.Daycare2.Species == 0)
+            await TradeCordParanoiaChecks(Context, false).ConfigureAwait(false);
+            if (TCInfo.Daycare1.ID == 0 && TCInfo.Daycare2.ID == 0)
             {
                 await Context.Message.Channel.SendMessageAsync("You do not have anything in daycare.").ConfigureAwait(false);
                 return;
             }
 
             var msg = string.Empty;
-            var dcSpecies1 = TCInfo.Daycare1.Species == 0 ? "" : $"[ID: {TCInfo.Daycare1.ID}] {(TCInfo.Daycare1.Shiny ? "★" : "")}{SpeciesName.GetSpeciesNameGeneration(TCInfo.Daycare1.Species, 2, 8)}{TCInfo.Daycare1.Form} ({(Ball)TCInfo.Daycare1.Ball})";
-            var dcSpecies2 = TCInfo.Daycare2.Species == 0 ? "" : $"[ID: {TCInfo.Daycare2.ID}] {(TCInfo.Daycare2.Shiny ? "★" : "")}{SpeciesName.GetSpeciesNameGeneration(TCInfo.Daycare2.Species, 2, 8)}{TCInfo.Daycare2.Form} ({(Ball)TCInfo.Daycare2.Ball})";
+            var dcSpecies1 = TCInfo.Daycare1.ID == 0 ? "" : $"[ID: {TCInfo.Daycare1.ID}] {(TCInfo.Daycare1.Shiny ? "★" : "")}{SpeciesName.GetSpeciesNameGeneration(TCInfo.Daycare1.Species, 2, 8)}{TCInfo.Daycare1.Form} ({(Ball)TCInfo.Daycare1.Ball})";
+            var dcSpecies2 = TCInfo.Daycare2.ID == 0 ? "" : $"[ID: {TCInfo.Daycare2.ID}] {(TCInfo.Daycare2.Shiny ? "★" : "")}{SpeciesName.GetSpeciesNameGeneration(TCInfo.Daycare2.Species, 2, 8)}{TCInfo.Daycare2.Form} ({(Ball)TCInfo.Daycare2.Ball})";
 
-            if (TCInfo.Daycare1.Species != 0 && TCInfo.Daycare2.Species != 0)
+            if (TCInfo.Daycare1.ID != 0 && TCInfo.Daycare2.ID != 0)
                 msg = $"{dcSpecies1}\n{dcSpecies2}{(CanGenerateEgg(out _, out _) ? "\n\nThey seem to really like each other." : "\n\nThey don't really seem to be fond of each other. Make sure they're of the same evolution tree and can be eggs!")}";
-            else if (TCInfo.Daycare1.Species == 0 || TCInfo.Daycare2.Species == 0)
-                msg = $"{(TCInfo.Daycare1.Species == 0 ? dcSpecies2 : dcSpecies1)}\n\nIt seems lonely.";
+            else if (TCInfo.Daycare1.ID == 0 || TCInfo.Daycare2.ID == 0)
+                msg = $"{(TCInfo.Daycare1.ID == 0 ? dcSpecies2 : dcSpecies1)}\n\nIt seems lonely.";
 
             var embed = new EmbedBuilder { Color = Color.DarkBlue };
             var name = $"{Context.User.Username}'s Daycare Info";
@@ -569,97 +591,104 @@ namespace SysBot.Pokemon.Discord
 
         [Command("TradeCordDaycare")]
         [Alias("dc")]
-        [Summary("Adds (or removes) Pokémon to daycare.")]
+        [Summary("Adds (or removes) Pokémon to (from) daycare.")]
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
         public async Task Daycare([Summary("Action to do (withdraw, deposit)")] string action, [Summary("Catch ID or elaborate action (\"All\" if withdrawing")] string id)
         {
-            TradeCordParanoiaChecks(Context);
+            await TradeCordParanoiaChecks(Context).ConfigureAwait(false);
             id = id.ToLower();
             action = action.ToLower();
-            if (!int.TryParse(id, out _) && id != "all")
+            async Task<bool> FuncDC()
             {
-                await Context.Message.Channel.SendMessageAsync("Please enter a numerical catch ID.").ConfigureAwait(false);
-                return;
-            }
-
-            string speciesString = string.Empty;
-            bool deposit = action == "d" || action == "deposit";
-            bool withdraw = action == "w" || action == "withdraw";
-            var match = deposit ? TCInfo.Catches.FirstOrDefault(x => x.ID == int.Parse(id) && !x.Traded) : null;
-            if (deposit && match == null)
-            {
-                await Context.Message.Channel.SendMessageAsync("There is no Pokémon with this ID.").ConfigureAwait(false);
-                return;
-            }
-
-            if (withdraw)
-            {
-                if (TCInfo.Daycare1.ID == 0 && TCInfo.Daycare2.ID == 0)
+                if (!int.TryParse(id, out _) && id != "all")
                 {
-                    await Context.Message.Channel.SendMessageAsync("You do not have anything in daycare.").ConfigureAwait(false);
-                    return;
+                    await Context.Message.Channel.SendMessageAsync("Please enter a numerical catch ID.").ConfigureAwait(false);
+                    return false;
                 }
 
-                if (id != "all")
+                string speciesString = string.Empty;
+                bool deposit = action == "d" || action == "deposit";
+                bool withdraw = action == "w" || action == "withdraw";
+                var match = deposit ? TCInfo.Catches.FirstOrDefault(x => x.ID == int.Parse(id) && !x.Traded) : null;
+                if (deposit && match == null)
                 {
-                    if (TCInfo.Daycare1.ID.Equals(int.Parse(id)))
+                    await Context.Message.Channel.SendMessageAsync("There is no Pokémon with this ID.").ConfigureAwait(false);
+                    return false;
+                }
+
+                if (withdraw)
+                {
+                    if (TCInfo.Daycare1.ID == 0 && TCInfo.Daycare2.ID == 0)
                     {
-                        speciesString = $"[ID: {TCInfo.Daycare1.ID}] {(TCInfo.Daycare1.Shiny ? "★" : "")}{SpeciesName.GetSpeciesNameGeneration(TCInfo.Daycare1.Species, 2, 8)}{TCInfo.Daycare1.Form}";
-                        TCInfo.Daycare1 = new();
+                        await Context.Message.Channel.SendMessageAsync("You do not have anything in daycare.").ConfigureAwait(false);
+                        return false;
                     }
-                    else if (TCInfo.Daycare2.ID.Equals(int.Parse(id)))
+
+                    if (id != "all")
                     {
-                        speciesString = $"[ID: {TCInfo.Daycare2.ID}] {(TCInfo.Daycare2.Shiny ? "★" : "")}{SpeciesName.GetSpeciesNameGeneration(TCInfo.Daycare2.Species, 2, 8)}{TCInfo.Daycare2.Form}";
-                        TCInfo.Daycare2 = new();
+                        if (TCInfo.Daycare1.ID.Equals(int.Parse(id)))
+                        {
+                            speciesString = $"[ID: {TCInfo.Daycare1.ID}] {(TCInfo.Daycare1.Shiny ? "★" : "")}{SpeciesName.GetSpeciesNameGeneration(TCInfo.Daycare1.Species, 2, 8)}{TCInfo.Daycare1.Form}";
+                            TCInfo.Daycare1 = new();
+                        }
+                        else if (TCInfo.Daycare2.ID.Equals(int.Parse(id)))
+                        {
+                            speciesString = $"[ID: {TCInfo.Daycare2.ID}] {(TCInfo.Daycare2.Shiny ? "★" : "")}{SpeciesName.GetSpeciesNameGeneration(TCInfo.Daycare2.Species, 2, 8)}{TCInfo.Daycare2.Form}";
+                            TCInfo.Daycare2 = new();
+                        }
+                        else
+                        {
+                            await Context.Message.Channel.SendMessageAsync("You do not have that Pokémon in daycare.").ConfigureAwait(false);
+                            return false;
+                        }
                     }
                     else
                     {
-                        await Context.Message.Channel.SendMessageAsync("You do not have that Pokémon in daycare.").ConfigureAwait(false);
-                        return;
+                        bool fullDC = TCInfo.Daycare1.ID != 0 && TCInfo.Daycare2.ID != 0;
+                        speciesString = !fullDC ? $"[ID: {(TCInfo.Daycare1.ID != 0 ? TCInfo.Daycare1.ID : TCInfo.Daycare2.ID)}] {(TCInfo.Daycare1.ID != 0 && TCInfo.Daycare1.Shiny ? "★" : TCInfo.Daycare2.ID != 0 && TCInfo.Daycare2.Shiny ? "★" : "")}{SpeciesName.GetSpeciesNameGeneration(TCInfo.Daycare1.ID != 0 ? TCInfo.Daycare1.Species : TCInfo.Daycare2.Species, 2, 8)}{(TCInfo.Daycare1.ID != 0 ? TCInfo.Daycare1.Form : TCInfo.Daycare2.Form)}" :
+                            $"[ID: {TCInfo.Daycare1.ID}] {(TCInfo.Daycare1.Shiny ? "★" : "")}{SpeciesName.GetSpeciesNameGeneration(TCInfo.Daycare1.Species, 2, 8)}{TCInfo.Daycare1.Form} and [ID: {TCInfo.Daycare2.ID}] {(TCInfo.Daycare2.Shiny ? "★" : "")}{SpeciesName.GetSpeciesNameGeneration(TCInfo.Daycare2.Species, 2, 8)}{TCInfo.Daycare2.Form}";
+                        TCInfo.Daycare1 = new();
+                        TCInfo.Daycare2 = new();
+                    }
+                }
+                else if (deposit && match != null)
+                {
+                    if (TCInfo.Daycare1.ID != 0 && TCInfo.Daycare2.ID != 0)
+                    {
+                        await Context.Message.Channel.SendMessageAsync("Daycare full, please withdraw something first.").ConfigureAwait(false);
+                        return false;
+                    }
+
+                    var speciesStr = string.Join("", match.Species.Split('-', ' ', '’', '.'));
+                    speciesStr += match.Path.Contains("Nidoran-M") ? "M" : match.Path.Contains("Nidoran-F") ? "F" : "";
+                    Enum.TryParse(match.Ball, out Ball ball);
+                    Enum.TryParse(speciesStr, out Species species);
+                    if ((TCInfo.Daycare1.ID == 0 && TCInfo.Daycare2.ID == 0) || (TCInfo.Daycare1.ID == 0 && TCInfo.Daycare2.ID != int.Parse(id)))
+                        TCInfo.Daycare1 = new() { Ball = (int)ball, Form = match.Form, ID = match.ID, Shiny = match.Shiny, Species = (int)species };
+                    else if (TCInfo.Daycare2.ID == 0 && TCInfo.Daycare1.ID != int.Parse(id))
+                        TCInfo.Daycare2 = new() { Ball = (int)ball, Form = match.Form, ID = match.ID, Shiny = match.Shiny, Species = (int)species };
+                    else
+                    {
+                        await Context.Message.Channel.SendMessageAsync("You've already deposited that Pokémon to daycare.").ConfigureAwait(false);
+                        return false;
                     }
                 }
                 else
                 {
-                    bool fullDC = TCInfo.Daycare1.ID != 0 && TCInfo.Daycare2.ID != 0;
-                    speciesString = !fullDC ? $"[ID: {(TCInfo.Daycare1.ID != 0 ? TCInfo.Daycare1.ID : TCInfo.Daycare2.ID)}] {(TCInfo.Daycare1.ID != 0 && TCInfo.Daycare1.Shiny ? "★" : TCInfo.Daycare2.ID != 0 && TCInfo.Daycare2.Shiny ? "★" : "")}{SpeciesName.GetSpeciesNameGeneration(TCInfo.Daycare1.ID != 0 ? TCInfo.Daycare1.Species : TCInfo.Daycare2.Species, 2, 8)}{(TCInfo.Daycare1.ID != 0 ? TCInfo.Daycare1.Form : TCInfo.Daycare2.Form)}" :
-                        $"[ID: {TCInfo.Daycare1.ID}] {(TCInfo.Daycare1.Shiny ? "★" : "")}{SpeciesName.GetSpeciesNameGeneration(TCInfo.Daycare1.Species, 2, 8)}{TCInfo.Daycare1.Form} and [ID: {TCInfo.Daycare2.ID}] {(TCInfo.Daycare2.Shiny ? "★" : "")}{SpeciesName.GetSpeciesNameGeneration(TCInfo.Daycare2.Species, 2, 8)}{TCInfo.Daycare2.Form}";
-                    TCInfo.Daycare1 = new();
-                    TCInfo.Daycare2 = new();
-                }
-            }
-            else if (deposit && match != null)
-            {
-                if (TCInfo.Daycare1.Species != 0 && TCInfo.Daycare2.Species != 0)
-                {
-                    await Context.Message.Channel.SendMessageAsync("Daycare full, please withdraw something first.").ConfigureAwait(false);
-                    return;
+                    await Context.Message.Channel.SendMessageAsync("Invalid command.").ConfigureAwait(false);
+                    return false;
                 }
 
-                var speciesStr = string.Join("", match.Species.Split('-', ' ', '’', '.'));
-                speciesStr += match.Path.Contains("Nidoran-M") ? "M" : match.Path.Contains("Nidoran-F") ? "F" : "";
-                Enum.TryParse(match.Ball, out Ball ball);
-                Enum.TryParse(speciesStr, out Species species);
-                if ((TCInfo.Daycare1.ID == 0 && TCInfo.Daycare2.ID == 0) || (TCInfo.Daycare1.ID == 0 && TCInfo.Daycare2.ID != int.Parse(id)))
-                    TCInfo.Daycare1 = new TradeExtensions.Daycare1 { Ball = (int)ball, Form = match.Form, ID = match.ID, Shiny = match.Shiny, Species = (int)species };
-                else if (TCInfo.Daycare2.ID == 0 && TCInfo.Daycare1.ID != int.Parse(id))
-                    TCInfo.Daycare2 = new TradeExtensions.Daycare2 { Ball = (int)ball, Form = match.Form, ID = match.ID, Shiny = match.Shiny, Species = (int)species };
-                else
-                {
-                    await Context.Message.Channel.SendMessageAsync("You've already deposited that Pokémon to daycare.").ConfigureAwait(false);
-                    return;
-                }
-            }
-            else
-            {
-                await Context.Message.Channel.SendMessageAsync("Invalid command.").ConfigureAwait(false);
-                return;
+                await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
+                var embed = new EmbedBuilder { Color = Color.DarkBlue };
+                var name = $"{Context.User.Username}'s Daycare {(deposit ? "Deposit" : "Withdraw")}";
+                var results = deposit && match != null ? $"Deposited your {(match.Shiny ? "★" : "")}{match.Species}{match.Form}({match.Ball}) to daycare!" : $"You withdrew your {speciesString} from the daycare.";
+                await EmbedUtil(embed, name, results).ConfigureAwait(false);
+                return true;
             }
 
-            TradeExtensions.UpdateUserInfo(TCInfo, InfoPath);
-            var embed = new EmbedBuilder { Color = Color.DarkBlue };
-            var name = $"{Context.User.Username}'s Daycare {(deposit ? "Deposit" : "Withdraw")}";
-            var results = deposit && match != null ? $"Deposited your {(match.Shiny ? "★" : "")}{match.Species}{match.Form}({match.Ball}) to daycare!" : $"You withdrew your {speciesString} from the daycare.";
-            await EmbedUtil(embed, name, results).ConfigureAwait(false);
+            if (!await FuncDC().ConfigureAwait(false))
+                TradeExtensions.CommandInProgress.RemoveAll(x => x == TCInfo.UserID);
         }
 
         [Command("TradeCordGift")]
@@ -668,127 +697,122 @@ namespace SysBot.Pokemon.Discord
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
         public async Task Gift([Summary("Numerical catch ID")] string id, [Summary("User mention")] string _)
         {
-            TradeCordParanoiaChecks(Context);
-            if (!int.TryParse(id, out int _int))
+            await TradeCordParanoiaChecks(Context).ConfigureAwait(false);
+            async Task<bool> FuncGift()
             {
-                await Context.Message.Channel.SendMessageAsync("Please enter a numerical catch ID.").ConfigureAwait(false);
-                return;
-            }
-            else if (Context.Message.MentionedUsers.Count == 0)
-            {
-                await Context.Message.Channel.SendMessageAsync("Please mention a user you're gifting a Pokémon to.").ConfigureAwait(false);
-                return;
-            }
-            else if (Context.Message.MentionedUsers.First().Id == Context.User.Id)
-            {
-                await Context.Message.Channel.SendMessageAsync("...Why?").ConfigureAwait(false);
-                return;
+                if (!int.TryParse(id, out int _int))
+                {
+                    await Context.Message.Channel.SendMessageAsync("Please enter a numerical catch ID.").ConfigureAwait(false);
+                    return false;
+                }
+                else if (Context.Message.MentionedUsers.Count == 0)
+                {
+                    await Context.Message.Channel.SendMessageAsync("Please mention a user you're gifting a Pokémon to.").ConfigureAwait(false);
+                    return false;
+                }
+                else if (Context.Message.MentionedUsers.First().Id == Context.User.Id)
+                {
+                    await Context.Message.Channel.SendMessageAsync("...Why?").ConfigureAwait(false);
+                    return false;
+                }
+
+                var match = TCInfo.Catches.FirstOrDefault(x => x.ID == int.Parse(id) && !x.Traded);
+                var dir = Path.Combine("TradeCord", Context.Message.MentionedUsers.First().Id.ToString());
+                if (match == null)
+                {
+                    await Context.Message.Channel.SendMessageAsync("Cannot find this Pokémon.").ConfigureAwait(false);
+                    return false;
+                }
+                else if (!Directory.Exists(dir))
+                    Directory.CreateDirectory(dir);
+
+                var dcfavCheck = TCInfo.Daycare1.ID == int.Parse(id) || TCInfo.Daycare2.ID == int.Parse(id) || TCInfo.Favorites.FirstOrDefault(x => x == int.Parse(id)) != default;
+                if (dcfavCheck)
+                {
+                    await Context.Message.Channel.SendMessageAsync("Please remove your Pokémon from favorites and daycare before gifting!").ConfigureAwait(false);
+                    return false;
+                }
+
+                var mentionedUser = Context.Message.MentionedUsers.First().Id;
+                var receivingUser = await TradeExtensions.GetUserInfo(mentionedUser, 0, true).ConfigureAwait(false);
+                HashSet<int> newIDParse = new();
+                foreach (var caught in receivingUser.Catches)
+                    newIDParse.Add(caught.ID);
+
+                var newID = Indexing(newIDParse.OrderBy(x => x).ToArray());
+                var newPath = $"{dir}\\{match.Path.Split('\\')[2].Replace(match.ID.ToString(), newID.ToString())}";
+                File.Move(match.Path, newPath);
+                receivingUser.Catches.Add(new() { Ball = match.Ball, Egg = match.Egg, Form = match.Form, ID = newID, Shiny = match.Shiny, Species = match.Species, Path = newPath, Traded = false });
+                var specID = SpeciesName.GetSpeciesID(match.Species);
+                string dexEntry = "";
+                if (receivingUser.DexCompletionCount == 0 && !receivingUser.Dex.Contains(specID))
+                {
+                    receivingUser.Dex.Add(specID);
+                    dexEntry = $"\n{Context.Message.MentionedUsers.First().Username} registered a new entry to the Pokédex!";
+                }
+
+                await TradeExtensions.UpdateUserInfo(receivingUser, false, true).ConfigureAwait(false);
+                TCInfo.Catches.Remove(match);
+                await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
+
+                var embed = new EmbedBuilder { Color = Color.Purple };
+                var name = $"{Context.User.Username}'s Gift";
+                var value = $"You gifted your {(match.Shiny ? "★" : "")}{match.Species}{match.Form} to {Context.Message.MentionedUsers.First().Username}. New ID is {newID}.{dexEntry}";
+                await EmbedUtil(embed, name, value).ConfigureAwait(false);
+                return true;
             }
 
-            var match = TCInfo.Catches.FirstOrDefault(x => x.ID == int.Parse(id) && !x.Traded);
-            var dir = Path.Combine("TradeCord", Context.Message.MentionedUsers.First().Id.ToString());
-            if (match == null)
-            {
-                await Context.Message.Channel.SendMessageAsync("Cannot find this Pokémon.").ConfigureAwait(false);
-                return;
-            }
-            else if (!Directory.Exists(dir))
-                Directory.CreateDirectory(dir);
-
-            var dcfavCheck = TCInfo.Daycare1.ID == int.Parse(id) || TCInfo.Daycare2.ID == int.Parse(id) || TCInfo.Favorites.FirstOrDefault(x => x == int.Parse(id)) != default;
-            if (dcfavCheck)
-            {
-                await Context.Message.Channel.SendMessageAsync("Please remove your Pokémon from favorites and daycare before gifting!").ConfigureAwait(false);
-                return;
-            }
-
-            var receivingUser = TradeExtensions.GetUserInfo(Context.Message.MentionedUsers.First().Id, InfoPath);
-            HashSet<int> newIDParse = new();
-            foreach (var caught in receivingUser.Catches)
-                newIDParse.Add(caught.ID);
-
-            var newID = Indexing(newIDParse.OrderBy(x => x).ToArray());
-            var embed = new EmbedBuilder { Color = Color.Purple };
-            var name = $"{Context.User.Username}'s Gift";
-            var newPath = $"{dir}\\{match.Path.Split('\\')[2].Replace(match.ID.ToString(), newID.ToString())}";
-            var value = $"You gifted your {(match.Shiny ? "★" : "")}{match.Species}{match.Form} to {Context.Message.MentionedUsers.First().Username}.";
-
-            receivingUser.Catches.Add(new TradeExtensions.Catch { Ball = match.Ball, Egg = match.Egg, Form = match.Form, ID = newID, Shiny = match.Shiny, Species = match.Species, Path = newPath, Traded = false });
-            TradeExtensions.UpdateUserInfo(receivingUser, InfoPath);
-            File.Move(match.Path, newPath);
-            TCInfo.Catches.Remove(match);
-            TradeExtensions.UpdateUserInfo(TCInfo, InfoPath);
-            await EmbedUtil(embed, name, value).ConfigureAwait(false);
+            if (!await FuncGift().ConfigureAwait(false))
+                TradeExtensions.CommandInProgress.RemoveAll(x => x == TCInfo.UserID);
         }
 
         [Command("TradeCordTrainerInfoSet")]
         [Alias("tis")]
         [Summary("Sets individual trainer info for caught Pokémon.")]
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
-        public async Task TrainerInfoSet([Remainder] string info)
+        public async Task TrainerInfoSet()
         {
-            TradeCordParanoiaChecks(Context);
-            List<string> trainerInfo = info.Split('\n', ',').ToList();
+            await TradeCordParanoiaChecks(Context).ConfigureAwait(false);
+            async Task<bool> FuncTrainerSet()
+            {
+                var attachments = Context.Message.Attachments;
+                if (attachments.Count == 0 || attachments.Count > 1)
+                {
+                    await Context.Message.Channel.SendMessageAsync($"Please attach a {(attachments.Count == 0 ? "" : "single ")}file.").ConfigureAwait(false);
+                    return false;
+                }
 
-            if (trainerInfo.Count < 5)
-            {
-                await Context.Message.Channel.SendMessageAsync("Please enter all required info!").ConfigureAwait(false);
-                return;
-            }
-            else if (trainerInfo.Any(x => !x.Contains(":")))
-            {
-                await Context.Message.Channel.SendMessageAsync("Please check the input format!").ConfigureAwait(false);
-                return;
-            }
+                var download = await NetUtil.DownloadPKMAsync(attachments.First()).ConfigureAwait(false);
+                if (!download.Success)
+                {
+                    await Context.Message.Channel.SendMessageAsync($"File download failed: \n{download.ErrorMessage}").ConfigureAwait(false);
+                    return false;
+                }
 
-            for (int i = 0; i < trainerInfo.Count; i++)
-                trainerInfo[i] = trainerInfo[i].Split(':')[0].Trim().ToLowerInvariant().Replace(" ", "") + ":" + trainerInfo[i].Split(':')[1].Trim();
+                var pkm = download.Data!;
+                var la = new LegalityAnalysis(pkm);
+                if (!la.Valid || !(pkm is PK8))
+                {
+                    await Context.Message.Channel.SendMessageAsync("Please upload a legal Gen8 Pokémon.").ConfigureAwait(false);
+                    return false;
+                }
 
-            if (!int.TryParse(trainerInfo.Find(x => x.Contains("tid:")).Split(':')[1].Trim(), out int tid))
-            {
-                await Context.Message.Channel.SendMessageAsync("TID has to be 6 digits long and only contain numbers!").ConfigureAwait(false);
-                return;
-            }
+                TCInfo.OTName = pkm.OT_Name;
+                TCInfo.OTGender = $"{(Gender)pkm.OT_Gender}";
+                TCInfo.TID = pkm.DisplayTID;
+                TCInfo.SID = pkm.DisplaySID;
+                TCInfo.Language = $"{(LanguageID)pkm.Language}";
 
-            if (!int.TryParse(trainerInfo.Find(x => x.Contains("sid:")).Split(':')[1].Trim(), out int sid))
-            {
-                await Context.Message.Channel.SendMessageAsync("SID has to be 4 digits long and only contain numbers!").ConfigureAwait(false);
-                return;
-            }
-
-            if (!Enum.TryParse(trainerInfo.Find(x => x.Contains("language:")).Split(':')[1].Trim().Substring(0, 1).ToUpper() + trainerInfo.Find(x => x.Contains("language:")).Split(':')[1].Trim().Substring(1), out LanguageID langID))
-            {
-                await Context.Message.Channel.SendMessageAsync("Please enter a valid in-game language!").ConfigureAwait(false);
-                return;
-            }
-
-            TCInfo.OTName = trainerInfo.Find(x => x.Contains("ot:")).Split(':')[1].Trim();
-            TCInfo.OTGender = trainerInfo.Find(x => x.Contains("otgender:")).Split(':')[1].Trim().Substring(0, 1).ToUpper() + trainerInfo.Find(x => x.Contains("otgender:")).Split(':')[1].Trim().Substring(1);
-            TCInfo.TID = tid;
-            TCInfo.SID = sid;
-            TCInfo.Language = ((LanguageID)(int)langID).ToString();
-
-            if (TCInfo.OTName.Length > 12)
-            {
-                await Context.Message.Channel.SendMessageAsync("OT name too long, has to be 12 characters or fewer!").ConfigureAwait(false);
-                return;
-            }
-            else if (TCInfo.OTName.Length > 6 && (TCInfo.Language.Equals("Japanese") || TCInfo.Language.Equals("Korean")))
-            {
-                await Context.Message.Channel.SendMessageAsync("Japanese and Korean have a lower limit for OT of 6 characters or fewer!").ConfigureAwait(false);
-                return;
-            }
-            else if (TCInfo.OTGender != "Male" && TCInfo.OTGender != "Female")
-            {
-                await Context.Message.Channel.SendMessageAsync("Enter your in-game OT gender as \"Male\" or \"Female\"!").ConfigureAwait(false);
-                return;
+                await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
+                var embed = new EmbedBuilder { Color = Color.DarkBlue };
+                var name = $"{Context.User.Username}'s Trainer Info";
+                var value = $"\nYour trainer info was set to the following: \n**OT:** {TCInfo.OTName}\n**OTGender:** {TCInfo.OTGender}\n**TID:** {TCInfo.TID}\n**SID:** {TCInfo.SID}\n**Language:** {TCInfo.Language}";
+                await EmbedUtil(embed, name, value).ConfigureAwait(false);
+                return true;
             }
 
-            TradeExtensions.UpdateUserInfo(TCInfo, InfoPath);
-            var embed = new EmbedBuilder { Color = Color.DarkBlue };
-            var name = $"{Context.User.Username}'s Trainer Info";
-            var value = $"\nYou've set your trainer info as the following: \n**OT:** {TCInfo.OTName}\n**OTGender:** {TCInfo.OTGender}\n**TID:** {TCInfo.TID}\n**SID:** {TCInfo.SID}\n**Language:** {TCInfo.Language}";
-            await EmbedUtil(embed, name, value).ConfigureAwait(false);
+            if (!await FuncTrainerSet().ConfigureAwait(false))
+                TradeExtensions.CommandInProgress.RemoveAll(x => x == TCInfo.UserID);
         }
 
         [Command("TradeCordTrainerInfo")]
@@ -797,7 +821,7 @@ namespace SysBot.Pokemon.Discord
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
         public async Task TrainerInfo()
         {
-            TradeCordParanoiaChecks(Context);
+            await TradeCordParanoiaChecks(Context, false).ConfigureAwait(false);
             var embed = new EmbedBuilder { Color = Color.DarkBlue };
             var name = $"{Context.User.Username}'s Trainer Info";
             var value = $"\n**OT:** {(TCInfo.OTName == "" ? "Not set." : TCInfo.OTName)}" +
@@ -814,7 +838,7 @@ namespace SysBot.Pokemon.Discord
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
         public async Task TradeCordFavorites()
         {
-            TradeCordParanoiaChecks(Context);
+            await TradeCordParanoiaChecks(Context, false).ConfigureAwait(false);
             if (TCInfo.Favorites.Count == 0)
             {
                 await Context.Message.Channel.SendMessageAsync($"You don't have anything in favorites yet!").ConfigureAwait(false);
@@ -839,10 +863,11 @@ namespace SysBot.Pokemon.Discord
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
         public async Task TradeCordFavorites([Summary("Catch ID")] string id)
         {
-            TradeCordParanoiaChecks(Context);
+            await TradeCordParanoiaChecks(Context).ConfigureAwait(false);
             if (!int.TryParse(id, out int _id))
             {
                 await Context.Message.Channel.SendMessageAsync("Please enter a numerical catch ID.").ConfigureAwait(false);
+                TradeExtensions.CommandInProgress.RemoveAll(x => x == TCInfo.UserID);
                 return;
             }
 
@@ -850,6 +875,7 @@ namespace SysBot.Pokemon.Discord
             if (match == null)
             {
                 await Context.Message.Channel.SendMessageAsync("Cannot find this Pokémon.").ConfigureAwait(false);
+                TradeExtensions.CommandInProgress.RemoveAll(x => x == TCInfo.UserID);
                 return;
             }
 
@@ -864,7 +890,7 @@ namespace SysBot.Pokemon.Discord
                 TCInfo.Favorites.Remove(fav);
                 await Context.Message.Channel.SendMessageAsync($"{Context.User.Username}, removed your {(match.Shiny ? "★" : "")}{match.Species}{match.Form} from favorites!").ConfigureAwait(false);
             }
-            TradeExtensions.UpdateUserInfo(TCInfo, InfoPath);
+            await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
         }
 
         [Command("TradeCordDex")]
@@ -873,7 +899,7 @@ namespace SysBot.Pokemon.Discord
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
         public async Task TradeCordDex([Summary("Optional parameter \"Missing\" for missing entries.")] string mode = "")
         {
-            TradeCordParanoiaChecks(Context);
+            await TradeCordParanoiaChecks(Context, false).ConfigureAwait(false);
             var embed = new EmbedBuilder { Color = Color.DarkBlue };
             var name = $"{Context.User.Username}'s {(mode.ToLower() == "missing" ? "Missing Entries" : "Dex Info")}";
             var value = $"\n**Pokédex:** {TCInfo.Dex.Count}/664" +
@@ -898,25 +924,25 @@ namespace SysBot.Pokemon.Discord
             await ListUtil(name, value).ConfigureAwait(false);
         }
 
-        private void TradeCordDump(string subfolder, PKM pkm, out int index)
+        private void TradeCordDump(string subfolder, PK8 pk, out int index)
         {
             var dir = Path.Combine("TradeCord", subfolder);
             Directory.CreateDirectory(dir);
-            var speciesName = SpeciesName.GetSpeciesNameGeneration(pkm.Species, 2, 8);
-            var form = TradeExtensions.FormOutput(pkm.Species, pkm.Form, out _);
+            var speciesName = SpeciesName.GetSpeciesNameGeneration(pk.Species, 2, 8);
+            var form = TradeExtensions.FormOutput(pk.Species, pk.Form, out _);
             if (speciesName.Contains("Nidoran"))
             {
                 speciesName = speciesName.Remove(speciesName.Length - 1);
-                form = pkm.Species == (int)Species.NidoranF ? "-F" : "-M";
+                form = pk.Species == (int)Species.NidoranF ? "-F" : "-M";
             }
 
-            var array = Directory.GetFiles(dir).Where(x => x.Contains(".pk8")).Select(x => int.Parse(x.Split('\\')[2].Split('-', '_')[0].Replace("★", "").Trim())).ToArray();
+            var array = Directory.GetFiles(dir).Where(x => x.Contains(".pk")).Select(x => int.Parse(x.Split('\\')[2].Split('-', '_')[0].Replace("★", "").Trim())).ToArray();
             array = array.OrderBy(x => x).ToArray();
             index = Indexing(array);
-            var newname = (pkm.IsShiny ? "★" + index.ToString() : index.ToString()) + $"_{(Ball)pkm.Ball}" + " - " + speciesName + form + $"{(pkm.IsEgg ? " (Egg)" : "")}" + ".pk8";
+            var newname = (pk.IsShiny ? "★" + index.ToString() : index.ToString()) + $"_{(Ball)pk.Ball}" + " - " + speciesName + form + $"{(pk.IsEgg ? " (Egg)" : "")}" + ".pk8";
             var fn = Path.Combine(dir, Util.CleanFileName(newname));
-            File.WriteAllBytes(fn, pkm.DecryptedPartyData);
-            TCInfo.Catches.Add(new TradeExtensions.Catch { Species = speciesName, Ball = ((Ball)pkm.Ball).ToString(), Egg = pkm.IsEgg, Form = form, ID = index, Path = fn, Shiny = pkm.IsShiny, Traded = false });
+            File.WriteAllBytes(fn, pk.DecryptedPartyData);
+            TCInfo.Catches.Add(new() { Species = speciesName, Ball = ((Ball)pk.Ball).ToString(), Egg = pk.IsEgg, Form = form, ID = index, Path = fn, Shiny = pk.IsShiny, Traded = false });
         }
 
         private int Indexing(int[] array)
@@ -930,7 +956,7 @@ namespace SysBot.Pokemon.Discord
             if (Info.Hub.Config.TradeCord.TradeCordCooldown > 0)
             {
                 var line = TradeExtensions.TradeCordCooldown.FirstOrDefault(z => z.Contains(id));
-                if (line != null)
+                if (line != default)
                     TradeExtensions.TradeCordCooldown.Remove(TradeExtensions.TradeCordCooldown.FirstOrDefault(z => z.Contains(id)));
                 TradeExtensions.TradeCordCooldown.Add($"{id},{DateTime.Now}");
             }
@@ -942,7 +968,7 @@ namespace SysBot.Pokemon.Discord
                 Info.Hub.Config.TradeCord.TradeCordCooldown = 0;
 
             var line = TradeExtensions.TradeCordCooldown.FirstOrDefault(z => z.Contains(user));
-            DateTime.TryParse(line != null ? line.Split(',')[1] : "", out DateTime time);
+            DateTime.TryParse(line != default ? line.Split(',')[1] : "", out DateTime time);
             var timer = time.AddSeconds(Info.Hub.Config.TradeCord.TradeCordCooldown);
             timeRemaining = timer - DateTime.Now;
             if (DateTime.Now < timer)
@@ -951,7 +977,7 @@ namespace SysBot.Pokemon.Discord
             return true;
         }
 
-        private void TradeCordParanoiaChecks(SocketCommandContext context)
+        private async Task TradeCordParanoiaChecks(SocketCommandContext context, bool update = true)
         {
             var user = context.User.Id.ToString();
             if (!Directory.Exists("TradeCord") || !Directory.Exists($"TradeCord\\Backup\\{user}"))
@@ -960,10 +986,7 @@ namespace SysBot.Pokemon.Discord
                 Directory.CreateDirectory($"TradeCord\\Backup\\{user}");
             }
 
-            if (!File.Exists($"TradeCord\\UserInfo.json"))
-                MigrateData();
-
-            TCInfo = TradeExtensions.GetUserInfo(Context.User.Id, InfoPath);
+            TCInfo = await TradeExtensions.GetUserInfo(Context.User.Id, Hub.Config.TradeCord.ConfigUpdateInterval).ConfigureAwait(false);
             var traded = TCInfo.Catches.ToList().FindAll(x => x.Traded);
             var tradeSignal = TradeExtensions.TradeCordPath.FirstOrDefault(x => x.Contains(TCInfo.UserID.ToString()));
             if (traded.Count != 0 && tradeSignal == default)
@@ -974,8 +997,11 @@ namespace SysBot.Pokemon.Discord
                         TCInfo.Catches.Remove(trade);
                     else trade.Traded = false;
                 }
-                TradeExtensions.UpdateUserInfo(TCInfo, InfoPath);
+                await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
             }
+
+            if (!update)
+                TradeExtensions.CommandInProgress.RemoveAll(x => x == TCInfo.UserID);
         }
 
         private bool SettingsCheck()
@@ -983,12 +1009,15 @@ namespace SysBot.Pokemon.Discord
             if (!Hub.Config.Legality.AllowBatchCommands)
                 Hub.Config.Legality.AllowBatchCommands = true;
 
+            if (!Hub.Config.Legality.AllowTrainerDataOverride)
+                Hub.Config.Legality.AllowTrainerDataOverride = true;
+
             List<int> rateCheck = new();
             IEnumerable<int> p = new[] { Info.Hub.Config.TradeCord.CatchRate, Info.Hub.Config.TradeCord.CherishRate, Info.Hub.Config.TradeCord.EggRate, Info.Hub.Config.TradeCord.GmaxRate, Info.Hub.Config.TradeCord.SquareShinyRate, Info.Hub.Config.TradeCord.StarShinyRate };
             rateCheck.AddRange(p);
             if (rateCheck.Any(x => x < 0 || x > 100))
             {
-                Base.EchoUtil.Echo("Error: TradeCord settings cannot be less than zero or more than 100.");
+                Base.LogUtil.LogInfo("TradeCord settings cannot be less than zero or more than 100.", "Error");
                 return false;
             }
             return true;
@@ -1148,8 +1177,17 @@ namespace SysBot.Pokemon.Discord
             string formHack = string.Empty;
             var formEdgeCaseRng = TradeExtensions.Random.Next(11);
             string[] poipoleRng = { "Poke", "Beast" };
-            int[] ignoreForm = { 382, 383, 487, 646, 649, 716, 717, 773, 778, 800, 845, 875, 877, 888, 889, 890, 893, 898 };
-            string shinyType = TCRng.ShinyRNG >= 100 - Info.Hub.Config.TradeCord.SquareShinyRate ? "\nShiny: Square" : TCRng.ShinyRNG >= 100 - Info.Hub.Config.TradeCord.StarShinyRate ? "\nShiny: Star" : "";
+            string[] mewOverride = { ".Version=34", ".Version=3" };
+            int[] ignoreForm = { 382, 383, 646, 649, 716, 717, 773, 778, 800, 845, 875, 877, 888, 889, 890, 898 };
+            Shiny shiny = TCRng.ShinyRNG >= 100 - Info.Hub.Config.TradeCord.SquareShinyRate ? Shiny.AlwaysSquare : TCRng.ShinyRNG >= 100 - Info.Hub.Config.TradeCord.StarShinyRate ? Shiny.AlwaysStar : Shiny.Never;
+            string shinyType = shiny == Shiny.AlwaysSquare ? "\nShiny: Square" : shiny == Shiny.AlwaysStar ? "\nShiny: Star" : "";
+            string gameVer = TCRng.SpeciesRNG switch
+            {
+                (int)Species.Exeggutor or (int)Species.Marowak => _ = "\n.Version=33",
+                (int)Species.Mew => _ = shinyType != "" ? $"\n{mewOverride[TradeExtensions.Random.Next(2)]}" : "",
+                _ => "",
+            };
+
             if (!ignoreForm.Contains(TCRng.SpeciesRNG))
             {
                 TradeExtensions.FormOutput(TCRng.SpeciesRNG, 0, out string[] forms);
@@ -1161,34 +1199,34 @@ namespace SysBot.Pokemon.Discord
                     (int)Species.Pikachu => _ = formEdgeCaseRng < 5 ? "" : TradeExtensions.PartnerPikachuHeadache[TradeExtensions.Random.Next(TradeExtensions.PartnerPikachuHeadache.Length)],
                     (int)Species.Dracovish or (int)Species.Dracozolt => _ = formEdgeCaseRng < 5 ? "" : "\nAbility: Sand Rush",
                     (int)Species.Arctovish or (int)Species.Arctozolt => _ = formEdgeCaseRng < 5 ? "" : "\nAbility: Slush Rush",
-                    (int)Species.Zygarde => forms[TradeExtensions.Random.Next(forms.Length - 1)],
-                    _ => EventPokeType == "" ? forms[TradeExtensions.Random.Next(forms.Length)] : EventPokeType == "Base" ? "" : forms[int.Parse(EventPokeType)],
+                    (int)Species.Zygarde => "-" + forms[TradeExtensions.Random.Next(forms.Length - 1)],
+                    (int)Species.Giratina => _ = formEdgeCaseRng < 5 ? "" : "-Origin @ Griseous Orb",
+                    _ => EventPokeType == "" ? "-" + forms[TradeExtensions.Random.Next(forms.Length)] : EventPokeType == "Base" ? "" : "-" + forms[int.Parse(EventPokeType)],
                 };
             }
 
+            bool hatchu = TCRng.SpeciesRNG == 25 && formHack != "" && formHack != "-Partner";
             string ballRng = TCRng.SpeciesRNG switch
             {
                 (int)Species.Poipole or (int)Species.Naganadel => $"\nBall: {poipoleRng[TradeExtensions.Random.Next(poipoleRng.Length)]}",
                 (int)Species.Meltan or (int)Species.Melmetal => $"\nBall: {TradeExtensions.LGPEBalls[TradeExtensions.Random.Next(TradeExtensions.LGPEBalls.Length)]}",
                 (int)Species.Dracovish or (int)Species.Dracozolt or (int)Species.Arctovish or (int)Species.Arctozolt => _ = formEdgeCaseRng < 5 ? $"\nBall: Poke" : $"\nBall: {(Ball)TradeExtensions.Random.Next(1, 26)}",
                 (int)Species.Treecko or (int)Species.Torchic or (int)Species.Mudkip => $"\nBall: {(Ball)TradeExtensions.Random.Next(2, 27)}",
-                _ => TradeExtensions.Pokeball.Contains(TCRng.SpeciesRNG) ? $"\nBall: Poke" : $"\nBall: {(Ball)TradeExtensions.Random.Next(1, 27)}",
+                (int)Species.Pikachu => "\nBall: Poke",
+                _ => TradeExtensions.Pokeball.Contains(TCRng.SpeciesRNG) ? "\nBall: Poke" : $"\nBall: {(Ball)TradeExtensions.Random.Next(1, 27)}",
             };
+
             ballRng = ballRng.Contains("Cherish") ? ballRng.Replace("Cherish", "Poke") : ballRng;
-            if (TradeExtensions.ShinyLockCheck(TCRng.SpeciesRNG, ballRng, TCRng.SpeciesRNG == (int)Species.Pikachu ? formHack != "-Partner" && formHack != "" : formHack != "" && formHack != "Normal"))
+            if (TradeExtensions.ShinyLockCheck(TCRng.SpeciesRNG, ballRng, formHack != "") || hatchu)
                 shinyType = "";
 
-            if (shinyType != "" && TCRng.SpeciesRNG == (int)Species.Mew)
-                trainerInfo.RemoveAll(x => x.Contains("Language"));
-
-            var set = new ShowdownSet($"{speciesName}{(formHack != "" ? $"-{formHack}" : "")}{ballRng}{shinyType}\n{string.Join("\n", trainerInfo)}{(TCRng.SpeciesRNG == 151 && shinyType != "" ? ".Version=3" : "")}");
+            var set = new ShowdownSet($"{speciesName}{formHack}{ballRng}{shinyType}\n{string.Join("\n", trainerInfo)}{gameVer}");
             if (set.CanToggleGigantamax(set.Species, set.Form) && TCRng.GmaxRNG >= 100 - Info.Hub.Config.TradeCord.GmaxRate)
                 set.CanGigantamax = true;
 
             var template = AutoLegalityWrapper.GetTemplate(set);
             var sav = AutoLegalityWrapper.GetTrainerInfo(8);
             TCRng.CatchPKM = (PK8)sav.GetLegal(template, out _);
-            Shiny shiny = TCRng.ShinyRNG >= 100 - Info.Hub.Config.TradeCord.SquareShinyRate ? Shiny.AlwaysSquare : TCRng.ShinyRNG >= 100 - Info.Hub.Config.TradeCord.StarShinyRate ? Shiny.AlwaysStar : Shiny.Never;
             TradeExtensions.RngRoutine(TCRng.CatchPKM, template, shiny);
         }
 
@@ -1234,7 +1272,7 @@ namespace SysBot.Pokemon.Discord
                 if (Info.Hub.Config.TradeCord.PokeEventType == PokeEventType.EventPoke)
                     MGRngEvent = MysteryGiftRng();
 
-                if (Info.Hub.Config.TradeCord.PokeEventType != PokeEventType.Legends && Info.Hub.Config.TradeCord.PokeEventType != PokeEventType.EventPoke)
+                if (Info.Hub.Config.TradeCord.PokeEventType != PokeEventType.Legends && Info.Hub.Config.TradeCord.PokeEventType != PokeEventType.EventPoke && Info.Hub.Config.TradeCord.PokeEventType != PokeEventType.PikaClones)
                 {
                     var temp = TradeCordPK(TCRng.SpeciesRNG, out _);
                     for (int i = 0; i < temp.PersonalInfo.FormCount; i++)
@@ -1250,6 +1288,7 @@ namespace SysBot.Pokemon.Discord
                 match = Info.Hub.Config.TradeCord.PokeEventType switch
                 {
                     PokeEventType.Legends => TradeExtensions.Legends.Contains(TCRng.SpeciesRNG),
+                    PokeEventType.PikaClones => TradeExtensions.PikaClones.Contains(TCRng.SpeciesRNG),
                     PokeEventType.EventPoke => MGRngEvent != default,
                     _ => type == Info.Hub.Config.TradeCord.PokeEventType.ToString(),
                 };
@@ -1329,6 +1368,7 @@ namespace SysBot.Pokemon.Discord
 
             failMsg += DexMsg;
             failMsg += EggEmbedMsg;
+            TradeExtensions.CommandInProgress.RemoveAll(x => x == TCInfo.UserID);
             await EmbedUtil(embedFail, failName, failMsg).ConfigureAwait(false);
         }
 
@@ -1349,109 +1389,23 @@ namespace SysBot.Pokemon.Discord
             }
         }
 
-        private void MigrateData()
-        {
-            File.Create(InfoPath).Close();
-            var files = Directory.GetFiles("TradeCord");
-            TradeExtensions.TCUserInfoRoot jobject = new();
-            var dcPkm1 = new TradeExtensions.Daycare1 { };
-            var dcPkm2 = new TradeExtensions.Daycare2 { };
-            for (int i = 0; i < files.Length; i++)
-            {
-                if (files[i].Contains(".txt"))
-                {
-                    try
-                    {
-                        var info = File.ReadAllText(files[i]).Split(',').ToList();
-                        while (info.Count < 8)
-                            info.Add("0");
-
-                        bool dc1 = info[1] != "0-0" && info[1] != "0";
-                        bool dc2 = info[2] != "0-0" && info[2] != "0";
-                        info[1] = info[1].Contains("★") ? info[1].Replace("★_", "") : info[1];
-                        info[2] = info[2].Contains("★") ? info[2].Replace("★_", "") : info[2];
-                        var id1 = dc1 ? int.Parse(info[1].Split('_')[0]) : 0;
-                        var id2 = dc2 ? int.Parse(info[2].Split('_')[0]) : 0;
-                        var userid = files[i].Split('\\')[1].Split('.')[0];
-                        HashSet<int> favlist = new();
-                        if (info.Count > 8)
-                        {
-                            for (int a = 8; a < info.Count; a++)
-                            {
-                                if (info[a].Contains("★"))
-                                    info[a] = info[a].Replace("★", "");
-                                favlist.Add(int.Parse(info[a]));
-                            }
-                        }
-
-                        HashSet<TradeExtensions.Catch> catches = new();
-                        HashSet<int> dex = new();
-                        foreach (var file in Directory.GetFiles($"TradeCord\\{userid}"))
-                        {
-                            var basestring = file.Split('\\')[2].Split('.')[0];
-                            if (basestring.Contains("★"))
-                                basestring = basestring.Replace("★", "");
-
-                            var id = int.Parse(basestring.Contains("_") ? basestring.Split('_')[0] : basestring.Split(' ')[0]);
-                            var pkm = PKMConverter.GetPKMfromBytes(File.ReadAllBytes(file));
-                            if (pkm == null)
-                                pkm = PKMConverter.GetBlank(typeof(PK8));
-
-                            if (!dex.Contains(pkm.Species))
-                                dex.Add(pkm.Species);
-
-                            var form = TradeExtensions.FormOutput(pkm.Species, pkm.Form, out _);
-                            catches.Add(new TradeExtensions.Catch { ID = id, Ball = $"{(Ball)pkm.Ball}", Egg = pkm.IsEgg, Form = form, Shiny = pkm.IsShiny, Species = $"{SpeciesName.GetSpeciesNameGeneration(pkm.Species, 2, 8)}", Path = file, Traded = false });
-                            if (dc1 && id1 == id)
-                                dcPkm1 = new TradeExtensions.Daycare1 { Ball = pkm.Ball, Form = TradeExtensions.FormOutput(pkm.Species, pkm.Form, out _), Species = pkm.Species, Shiny = pkm.IsShiny, ID = id1 };
-                            else if (dc2 && id2 == id)
-                                dcPkm2 = new TradeExtensions.Daycare2 { Ball = pkm.Ball, Form = TradeExtensions.FormOutput(pkm.Species, pkm.Form, out _), Species = pkm.Species, Shiny = pkm.IsShiny, ID = id2 };
-                        }
-
-                        jobject.Users.Add(new TradeExtensions.TCUserInfo
-                        {
-                            UserID = ulong.Parse(userid),
-                            CatchCount = int.TryParse(info[0], out int count) ? count : 0,
-                            Daycare1 = dc1 ? dcPkm1 : new TradeExtensions.Daycare1 { },
-                            Daycare2 = dc2 ? dcPkm2 : new TradeExtensions.Daycare2 { },
-                            OTName = int.TryParse(info[3], out _) ? "" : info[3],
-                            OTGender = int.TryParse(info[4], out _) ? "" : info[4],
-                            TID = int.TryParse(info[5], out int tid) ? tid : 0,
-                            SID = int.TryParse(info[6], out int sid) ? sid : 0,
-                            Language = int.TryParse(info[7], out _) ? "" : info[7],
-                            Dex = dex,
-                            Favorites = favlist,
-                            Catches = catches
-                        });
-
-                        TradeExtensions.SerializeInfo(jobject, InfoPath);
-                        File.Move(files[i], $"TradeCord\\Backup\\{userid}.txt");
-                    }
-                    catch (Exception ex)
-                    {
-                        Base.EchoUtil.Echo(ex.Message + "\n" + ex.StackTrace + "\n" + ex.InnerException);
-                    }
-                }
-            }
-        }
-
         public static async Task<bool> TrollAsync(SocketCommandContext context, bool invalid, IBattleTemplate set)
         {
             var rng = new Random();
             var path = Info.Hub.Config.Trade.MemeFileNames.Split(',');
-            var msg = $"Oops! I wasn't able to create that {GameInfo.Strings.Species[set.Species]}. Here's a meme instead!\n";
             if (path.Length == 0)
                 path = new string[] { "https://i.imgur.com/qaCwr09.png" }; //If memes enabled but none provided, use a default one.
 
             if (invalid || !ItemRestrictions.IsHeldItemAllowed(set.HeldItem, 8) || (set.Nickname.ToLower() == "egg" && !TradeExtensions.ValidEgg.Contains(set.Species)))
             {
+                var msg = $"Oops! I wasn't able to create that {GameInfo.Strings.Species[set.Species]}. Here's a meme instead!\n";
                 await context.Channel.SendMessageAsync($"{(invalid ? msg : "")}{path[rng.Next(path.Length)]}").ConfigureAwait(false);
                 return true;
             }
             return false;
         }
 
-        private int SpeciesRand(PK8 pk, string res) => res == "Regenerated" && (!pk.FatefulEncounter ? !pk.IsNicknamed : pk.SWSH) ? pk.Species : 0;
+        private int SpeciesRand(PK8 pk, string res) => res == "Regenerated" && (pk.FatefulEncounter || !pk.IsNicknamed) ? pk.Species : 0;
         private PK8 TradeCordPK(int species, out string res) => (PK8)AutoLegalityWrapper.GetTrainerInfo(8).GetLegal(AutoLegalityWrapper.GetTemplate(new ShowdownSet(SpeciesName.GetSpeciesNameGeneration(species, 2, 8))), out res);
     }
 }
