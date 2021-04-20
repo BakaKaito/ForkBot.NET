@@ -1,27 +1,31 @@
-﻿using PKHeX.Core;
-using PKHeX.Core.AutoMod;
-using Newtonsoft.Json;
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
+using System.Diagnostics;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Collections.Generic;
+using PKHeX.Core;
+using PKHeX.Core.AutoMod;
+using Newtonsoft.Json;
 
 namespace SysBot.Pokemon
 {
     public class TradeExtensions
     {
-        public PokeTradeHub<PK8> Hub;
-        public static int XCoordStart = 0;
-        public static int YCoordStart = 0;
+        public static Random Random = new Random();
+        public static byte[] Data = new byte[] { };
+        public static bool TCInitialized;
+        private static bool TCRWLockEnable;
+        private static bool NewUserLock = false;
+        public static readonly List<ulong> CommandInProgress = new();
+        private static readonly List<ulong> GiftInProgress = new();
         public static List<string> TradeCordPath = new();
         public static List<string> TradeCordCooldown = new();
-        public static byte[] Data = new byte[] { };
-        public static Random Random = new Random();
-
-        public TradeExtensions(PokeTradeHub<PK8> hub)
-        {
-            Hub = hub;
-        }
+        private static readonly string InfoPath = "TradeCord\\UserInfo.json";
+        public static TCUserInfoRoot UserInfo = GetRoot<TCUserInfoRoot>(InfoPath);
+        public static int XCoordStart = 0;
+        public static int YCoordStart = 0;
 
         public static uint AlcremieDecoration { get => BitConverter.ToUInt32(Data, 0xE4); set => BitConverter.GetBytes(value).CopyTo(Data, 0xE4); }
         public static int[] ValidEgg =
@@ -59,6 +63,8 @@ namespace SysBot.Pokemon
                                         716, 717, 718, 719, 721,
                                         772, 773, 785, 786, 787, 788, 789, 790, 791, 792, 793, 794, 795, 796, 797, 798, 799, 800, 801, 802, 803, 804, 805, 806, 807, 808, 809,
                                         888, 889, 890, 891, 892, 893, 894, 895, 896, 897, 898 };
+
+        public static int[] PikaClones = { 25, 26, 172, 587, 702, 777, 877 };
 
         public static int[] ShinyLock = { (int)Species.Victini, (int)Species.Keldeo, (int)Species.Volcanion, (int)Species.Cosmog, (int)Species.Cosmoem, (int)Species.Magearna,
                                           (int)Species.Marshadow, (int)Species.Zacian, (int)Species.Zamazenta, (int)Species.Eternatus, (int)Species.Kubfu, (int)Species.Urshifu,
@@ -111,56 +117,71 @@ namespace SysBot.Pokemon
             public PK8 EggPKM { get => eggPKM; set => eggPKM = value; }
         }
 
-        public class Daycare1
-        {
-            public bool Shiny { get; set; }
-            public int ID { get; set; }
-            public int Species { get; set; }
-            public string Form { get; set; } = "";
-            public int Ball { get; set; }
-        }
-
-        public class Daycare2
-        {
-            public bool Shiny { get; set; }
-            public int ID { get; set; }
-            public int Species { get; set; }
-            public string Form { get; set; } = "";
-            public int Ball { get; set; }
-        }
-
-        public class Catch
-        {
-            public bool Shiny { get; set; }
-            public int ID { get; set; }
-            public string Ball { get; set; } = "None";
-            public string Species { get; set; } = "None";
-            public string Form { get; set; } = "";
-            public bool Egg { get; set; }
-            public string Path { get; set; } = "";
-            public bool Traded { get; set; }
-        }
-
-        public class TCUserInfo
-        {
-            public ulong UserID { get; set; }
-            public int CatchCount { get; set; }
-            public Daycare1 Daycare1 { get; set; } = new();
-            public Daycare2 Daycare2 { get; set; } = new();
-            public string OTName { get; set; } = "";
-            public string OTGender { get; set; } = "";
-            public int TID { get; set; }
-            public int SID { get; set; }
-            public string Language { get; set; } = "";
-            public HashSet<int> Dex { get; set; } = new();
-            public int DexCompletionCount { get; set; }
-            public HashSet<int> Favorites { get; set; } = new();
-            public HashSet<Catch> Catches { get; set; } = new();
-        }
-
         public class TCUserInfoRoot
         {
             public HashSet<TCUserInfo> Users { get; set; } = new();
+
+            public class TCUserInfo
+            {
+                public ulong UserID { get; set; }
+                public int CatchCount { get; set; }
+                public Daycare1 Daycare1 { get; set; } = new();
+                public Daycare2 Daycare2 { get; set; } = new();
+                public string OTName { get; set; } = "";
+                public string OTGender { get; set; } = "";
+                public int TID { get; set; }
+                public int SID { get; set; }
+                public string Language { get; set; } = "";
+                public HashSet<int> Dex { get; set; } = new();
+                public int DexCompletionCount { get; set; }
+                public HashSet<int> Favorites { get; set; } = new();
+                public HashSet<Catch> Catches { get; set; } = new();
+            }
+
+            public class Catch
+            {
+                public bool Shiny { get; set; }
+                public int ID { get; set; }
+                public string Ball { get; set; } = "None";
+                public string Species { get; set; } = "None";
+                public string Form { get; set; } = "";
+                public bool Egg { get; set; }
+                public string Path { get; set; } = "";
+                public bool Traded { get; set; }
+            }
+
+            public class Daycare1
+            {
+                public bool Shiny { get; set; }
+                public int ID { get; set; }
+                public int Species { get; set; }
+                public string Form { get; set; } = "";
+                public int Ball { get; set; }
+            }
+
+            public class Daycare2
+            {
+                public bool Shiny { get; set; }
+                public int ID { get; set; }
+                public int Species { get; set; }
+                public string Form { get; set; } = "";
+                public int Ball { get; set; }
+            }
+        }
+
+        private static async Task SerializationMonitor(int interval)
+        {
+            var sw = new Stopwatch();
+            sw.Start();
+            while (true)
+            {
+                if (sw.ElapsedMilliseconds / 1000 >= interval && !TCRWLockEnable)
+                {
+                    SerializeInfo(UserInfo, InfoPath, true);
+                    sw.Restart();
+                }
+                else await Task.Delay(15_000).ConfigureAwait(false);
+            }
         }
 
         public static bool ShinyLockCheck(int species, string ball, bool form)
@@ -176,62 +197,58 @@ namespace SysBot.Pokemon
 
         public static PKM RngRoutine(PKM pkm, IBattleTemplate template, Shiny shiny)
         {
-            var troublesomeForms = pkm.Species == (int)Species.Giratina || pkm.Species == (int)Species.Silvally || pkm.Species == (int)Species.Genesect || pkm.Species == (int)Species.Articuno || pkm.Species == (int)Species.Zapdos || pkm.Species == (int)Species.Moltres;
-            pkm.Form = pkm.Species == (int)Species.Silvally || pkm.Species == (int)Species.Genesect || pkm.Species == (int)Species.Giratina ? Random.Next(pkm.PersonalInfo.FormCount) : pkm.Form;
+            pkm.Form = pkm.Species == (int)Species.Silvally || pkm.Species == (int)Species.Genesect ? Random.Next(pkm.PersonalInfo.FormCount) : pkm.Form;
             if (pkm.Species == (int)Species.Alcremie)
             {
                 Data = pkm.Data;
                 AlcremieDecoration = (uint)Random.Next(7);
                 pkm = PKMConverter.GetPKMfromBytes(Data) ?? pkm;
             }
-            else if (pkm.Form > 0 && troublesomeForms)
+            else if (pkm.Form > 0 && pkm.Species == (int)Species.Silvally || pkm.Species == (int)Species.Genesect)
             {
                 switch (pkm.Species)
                 {
-                    case 26: pkm.Met_Location = 162; pkm.Met_Level = 25; pkm.EggMetDate = null; pkm.Egg_Day = 0; pkm.Egg_Location = 0; pkm.Egg_Month = 0; pkm.Egg_Year = 0; pkm.EncounterType = 0; break;
-                    case 144: pkm.Met_Location = 208; pkm.SetIsShiny(false); break;
-                    case 145: pkm.Met_Location = 122; pkm.SetIsShiny(false); break;
-                    case 146: pkm.Met_Location = 164; pkm.SetIsShiny(false); break;
-                    case 487: pkm.HeldItem = 112; pkm.RefreshAbility(pkm.AbilityNumber); break;
                     case 649: pkm.HeldItem = GenesectDrives[pkm.Form]; break;
                     case 773: pkm.HeldItem = SilvallyMemory[pkm.Form]; break;
                 };
             }
-            else if (pkm.Form == 0 && troublesomeForms)
-            {
-                switch (pkm.Species)
-                {
-                    case 144: pkm.Met_Location = 244; break;
-                    case 145: pkm.Met_Location = 244; break;
-                    case 146: pkm.Met_Location = 244; break;
-                };
-            }
-
-            if (pkm.IsShiny && pkm.Met_Location == 244)
-                CommonEdits.SetShiny(pkm, Shiny.AlwaysStar);
-
-            if (TradeEvo.Contains(pkm.Species))
-                pkm.HeldItem = 229;
 
             pkm.Nature = pkm.Species == (int)Species.Toxtricity && pkm.Form > 0 ? LowKey[Random.Next(LowKey.Length)] : pkm.Species == (int)Species.Toxtricity && pkm.Form == 0 ? Amped[Random.Next(Amped.Length)] : pkm.FatefulEncounter ? pkm.Nature : Random.Next(25);
             pkm.StatNature = pkm.Nature;
-            pkm.ClearHyperTraining();
-            pkm.SetSuggestedMoves(false);
-            pkm.RelearnMoves = (int[])pkm.GetSuggestedRelearnMoves();
             pkm.Move1_PPUps = pkm.Move2_PPUps = pkm.Move3_PPUps = pkm.Move4_PPUps = 0;
             pkm.SetMaximumPPCurrent(pkm.Moves);
-            pkm.FixMoves();
             pkm.ClearHyperTraining();
 
             var la = new LegalityAnalysis(pkm);
             var enc = la.Info.EncounterMatch;
-            if (!GalarFossils.Contains(pkm.Species) && !pkm.FatefulEncounter)
-                pkm.SetAbilityIndex(Legends.Contains(pkm.Species) ? 0 : pkm.Met_Location == 244 || pkm.Met_Location == 30001 ? 2 : enc.Version < GameVersion.US ? 2 : Random.Next(3));
+            var evoChain = la.Info.EvoChainsAllGens[pkm.Format].FirstOrDefault(x => x.Species == pkm.Species);
+            pkm.CurrentLevel = enc.LevelMin < evoChain.MinLevel ? evoChain.MinLevel : enc.LevelMin;
+            while (!new LegalityAnalysis(pkm).Valid && pkm.CurrentLevel <= 100)
+                pkm.CurrentLevel += 1;
 
-            pkm.IVs = enc is EncounterStatic8N ? pkm.SetRandomIVs(5) : pkm.FatefulEncounter ? pkm.IVs : enc is EncounterSlot8 || enc is EncounterStatic8U ? pkm.SetRandomIVs(4) : enc is EncounterSlot8GO || enc is EncounterSlot7GO ? pkm.SetRandomIVsGO() : pkm.SetRandomIVs(3);
+            pkm.SetSuggestedMoves();
+            pkm.SetRelearnMoves(pkm.GetSuggestedRelearnMoves(enc));
+            pkm.HealPP();
+
+            if (!GalarFossils.Contains(pkm.Species) && pkm.Species != 487 && !pkm.FatefulEncounter && la.Valid)
+            {
+                var sw = new Stopwatch();
+                sw.Start();
+                while (sw.ElapsedMilliseconds < 5_000)
+                {
+                    pkm.SetAbilityIndex(Random.Next(3));
+                    if (new LegalityAnalysis(pkm).Valid)
+                        break;
+                }
+            }
+
+            bool goMew = pkm.Species == (int)Species.Mew && enc.Version == GameVersion.GO && pkm.IsShiny;
+            pkm.IVs = goMew || pkm.FatefulEncounter ? pkm.IVs : enc.Version == GameVersion.GO ? pkm.SetRandomIVsGO() : enc is EncounterStatic8N && enc.LevelMin >= 35 ? pkm.SetRandomIVs(5) : enc is EncounterSlot8 || enc is EncounterStatic8U ? pkm.SetRandomIVs(4) : pkm.SetRandomIVs(3);
             if (enc is EncounterStatic8)
             {
-                while (!new LegalityAnalysis(pkm).Valid)
+                var sw = new Stopwatch();
+                sw.Start();
+                while (!new LegalityAnalysis(pkm).Valid && sw.ElapsedMilliseconds < 5_000)
                 {
                     if (!SimpleEdits.TryApplyHardcodedSeedWild8((PK8)pkm, enc, pkm.IVs, shiny))
                     {
@@ -241,16 +258,19 @@ namespace SysBot.Pokemon
                 }
             }
 
-            if (pkm.Species == (int)Species.Melmetal && !pkm.FatefulEncounter)
-                pkm.Met_Level = 15;
+            var ballRng = Random.Next(3);
+            if (ballRng == 2)
+                BallApplicator.ApplyBallLegalByColor(pkm);
+            else BallApplicator.ApplyBallLegalRandom(pkm);
 
-            if (!LegalEdits.ValidBall(pkm) || pkm.Species == (int)Species.Mew)
+            if (pkm.Ball == 16)
                 BallApplicator.ApplyBallLegalRandom(pkm);
+
             pkm = TrashBytes(pkm);
             return pkm;
         }
 
-        public static PKM EggRngRoutine(TCUserInfo info, string trainerInfo, int evo1, int evo2, bool star, bool square)
+        public static PKM EggRngRoutine(TCUserInfoRoot.TCUserInfo info, string trainerInfo, int evo1, int evo2, bool star, bool square)
         {
             var pkm1 = PKMConverter.GetPKMfromBytes(File.ReadAllBytes(info.Catches.FirstOrDefault(x => x.ID == info.Daycare1.ID).Path));
             var pkm2 = PKMConverter.GetPKMfromBytes(File.ReadAllBytes(info.Catches.FirstOrDefault(x => x.ID == info.Daycare2.ID).Path));
@@ -274,6 +294,8 @@ namespace SysBot.Pokemon
                 "Nidoran" => _ = specificEgg && dittoLoc == 1 ? (evo2 == 32 ? "-M" : "-F") : specificEgg && dittoLoc == 2 ? (evo1 == 32 ? "-M" : "-F") : (Random.Next(2) == 0 ? "-M" : "-F"),
                 "Meowth" => _ = FormOutput(speciesRngID, specificEgg && (pkm1.Species == 863 || pkm2.Species == 863) ? 2 : specificEgg && dittoLoc == 1 ? pkm2.Form : specificEgg && dittoLoc == 2 ? pkm1.Form : Random.Next(forms.Length), out _),
                 "Yamask" => FormOutput(speciesRngID, specificEgg && (pkm1.Species == 867 || pkm2.Species == 867) ? 1 : specificEgg && dittoLoc == 1 ? pkm2.Form : specificEgg && dittoLoc == 2 ? pkm1.Form : Random.Next(forms.Length), out _),
+                "Zigzagoon" => _ = FormOutput(speciesRngID, specificEgg && (pkm1.Species == 862 || pkm2.Species == 862) ? 1 : specificEgg && dittoLoc == 1 ? pkm2.Form : specificEgg && dittoLoc == 2 ? pkm1.Form : Random.Next(forms.Length), out _),
+                "Farfetch’d" => _ = FormOutput(speciesRngID, specificEgg && (pkm1.Species == 865 || pkm2.Species == 865) ? 1 : specificEgg && dittoLoc == 1 ? pkm2.Form : specificEgg && dittoLoc == 2 ? pkm1.Form : Random.Next(forms.Length), out _),
                 "Sinistea" or "Milcery" => "",
                 _ => FormOutput(speciesRngID, specificEgg && pkm1.Form == pkm2.Form ? pkm1.Form : specificEgg && dittoLoc == 1 ? pkm2.Form : specificEgg && dittoLoc == 2 ? pkm1.Form : Random.Next(forms.Length), out _),
             };
@@ -321,8 +343,7 @@ namespace SysBot.Pokemon
             pkm.Ball = 21;
             pkm.IVs = new int[] { 31, nickname.Contains(dittoStats[0]) ? 0 : 31, 31, nickname.Contains(dittoStats[1]) ? 0 : 31, nickname.Contains(dittoStats[2]) ? 0 : 31, 31 };
             pkm.ClearHyperTraining();
-            pkm.ClearNickname();
-            _ = TrashBytes(pkm);
+            _ = TrashBytes(pkm, new LegalityAnalysis(pkm));
         }
 
         public static void EggTrade(PK8 pk)
@@ -454,9 +475,7 @@ namespace SysBot.Pokemon
             pkm.IsNicknamed = true;
             if (pkm.Version != (int)GameVersion.GO && !pkm.FatefulEncounter)
                 pkm.MetDate = DateTime.Parse("2020/10/20");
-            if (la != null)
-                pkm.SetDefaultNickname(la);
-            else pkm.ClearNickname();
+            pkm.SetDefaultNickname(la ?? new LegalityAnalysis(pkm));
             return pkm;
         }
 
@@ -475,81 +494,117 @@ namespace SysBot.Pokemon
                 mgPkm.SetHandlerandMemory(info);
             else return new();
 
+            mgPkm.CurrentLevel = mg.LevelMin;
+            if (mg.HeldItem != 0 && ItemRestrictions.IsHeldItemAllowed(mg.HeldItem, 8))
+                mgPkm.HeldItem = mg.HeldItem;
+
             var la = new LegalityAnalysis(mgPkm);
             if (!la.Valid)
             {
                 mgPkm.SetRandomIVs(6);
-                return (PK8)AutoLegalityWrapper.GetLegal(info, new ShowdownSet(ShowdownParsing.GetShowdownText(mgPkm)), out _);
+                var showdown = ShowdownParsing.GetShowdownText(mgPkm);
+                return (PK8)AutoLegalityWrapper.GetLegal(info, new ShowdownSet(showdown), out _);
             }
             else return (PK8)mgPkm;
         }
 
-        private static void AddNewUser(TCUserInfoRoot root, ulong id, string file)
+        public static T GetRoot<T>(string file, TextReader? textReader = null) where T : new()
         {
-            root.Users.Add(new TCUserInfo { UserID = id });
-            SerializeInfo(root, file);
-        }
-
-        public static T? GetRoot<T>(string file, TextReader? textReader = null)
-        {
-            JsonSerializer serializer = new();
             if (textReader == null)
             {
-                using TextReader reader = File.OpenText(file);
-                T? root = (T?)serializer.Deserialize(reader, typeof(T));
-                reader.Close();
-                return root;
+                if (!File.Exists(file))
+                {
+                    Directory.CreateDirectory(file.Split('\\')[0]);
+                    File.Create(file).Close();
+                }
+
+                T root;
+                using StreamReader sr = File.OpenText(file);
+                using (JsonReader reader = new JsonTextReader(sr))
+                {
+                    JsonSerializer serializer = new();
+                    root = (T)serializer.Deserialize(reader, typeof(T));
+                }
+                return root ?? new();
             }
             else
             {
-                T? root = (T?)serializer.Deserialize(textReader, typeof(T));
-                return root;
+                JsonSerializer serializer = new();
+                T root = (T)serializer.Deserialize(textReader, typeof(T));
+                return root ?? new();
             }
         }
 
-        public static TCUserInfo GetUserInfo(ulong id, string file)
+        public static async Task<TCUserInfoRoot.TCUserInfo> GetUserInfo(ulong id, int interval = 0, bool gift = false)
         {
-            var root = GetRoot<TCUserInfoRoot>(file);
-            var user = root?.Users.FirstOrDefault(x => x.UserID == id);
-            if (root == null)
+            if (!TCInitialized)
             {
-                root = new();
-                AddNewUser(root, id, file);
+                TCInitialized = true;
+                _ = Task.Run(() => SerializationMonitor(interval));
             }
-            else if (user == null)
-                AddNewUser(root, id, file);
 
-            return user ?? root.Users.FirstOrDefault(x => x.UserID == id);
-        }
+            if (!gift)
+                CommandInProgress.Add(id);
+            else if (gift)
+                GiftInProgress.Add(id);
 
-        public static void UpdateUserInfo(TCUserInfo info, string file)
-        {
-            using TextReader reader = File.OpenText(file);
-            reader.Close();
-            var root = GetRoot<TCUserInfoRoot>(file);
-            if (info != null)
+            while (TCRWLockEnable || NewUserLock || GiftInProgress.Contains(id) && !gift || CommandInProgress.FindAll(x => x == id).Count > 1 && !gift)
+                await Task.Delay(0_100).ConfigureAwait(false);
+
+            var user = UserInfo.Users.FirstOrDefault(x => x.UserID == id);
+            if (user == null)
             {
-                if (root == null)
-                {
-                    root = new();
-                    root.Users.Add(info);
-                }
-                else
-                {
-                    var user = root.Users.FirstOrDefault(x => x.UserID == info.UserID);
-                    root.Users.Remove(user);
-                    root.Users.Add(info);
-                }
-                SerializeInfo(root, file);
+                NewUserLock = true;
+                user = new TCUserInfoRoot.TCUserInfo { UserID = id };
+                await UpdateUserInfo(user).ConfigureAwait(false);
             }
+            return user;
         }
 
-        public static void SerializeInfo(object? root, string filePath)
+        public static async Task UpdateUserInfo(TCUserInfoRoot.TCUserInfo info, bool remove = true, bool gift = false)
         {
-            JsonSerializer serializer = new();
-            using StreamWriter writer = File.CreateText(filePath);
-            serializer.Formatting = Formatting.Indented;
-            serializer.Serialize(writer, root);
+            while (TCRWLockEnable)
+                await Task.Delay(0_100).ConfigureAwait(false);
+
+            UserInfo.Users.RemoveWhere(x => x.UserID == info.UserID);
+            UserInfo.Users.Add(info);
+            NewUserLock = false;
+            if (remove)
+                CommandInProgress.RemoveAll(x => x == info.UserID);
+            if (gift)
+                GiftInProgress.Remove(info.UserID);
+        }
+
+        public static void SerializeInfo(object? root, string filePath, bool tc = false)
+        {
+            while (TCRWLockEnable && tc)
+                Thread.Sleep(0_100);
+
+            if (tc)
+                TCRWLockEnable = true;
+
+            bool success = false;
+            while (!success)
+            {
+                try
+                {
+                    JsonSerializer serializer = new();
+                    using StreamWriter writer = File.CreateText(filePath);
+                    serializer.Formatting = Formatting.Indented;
+                    serializer.Serialize(writer, root);
+                    success = true;
+                }
+                catch (IOException)
+                {
+                    Thread.Sleep(0_100);
+                }
+
+                if (success)
+                    break;
+            }
+
+            if (tc)
+                TCRWLockEnable = false;
         }
 
         public static void TradeStatusUpdate(string id, bool cancelled = false)
