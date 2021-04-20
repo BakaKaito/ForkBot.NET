@@ -13,7 +13,7 @@ namespace SysBot.Pokemon
 {
     public class TradeExtensions
     {
-        public static Random Random = new Random();
+        public static Random Random = new();
         public static byte[] Data = new byte[] { };
         public static bool TCInitialized;
         private static bool TCRWLockEnable;
@@ -243,18 +243,16 @@ namespace SysBot.Pokemon
             }
 
             bool goMew = pkm.Species == (int)Species.Mew && enc.Version == GameVersion.GO && pkm.IsShiny;
-            pkm.IVs = goMew || pkm.FatefulEncounter ? pkm.IVs : enc.Version == GameVersion.GO ? pkm.SetRandomIVsGO() : enc is EncounterStatic8N && enc.LevelMin >= 35 ? pkm.SetRandomIVs(5) : enc is EncounterSlot8 || enc is EncounterStatic8U ? pkm.SetRandomIVs(4) : pkm.SetRandomIVs(3);
+            pkm.IVs = goMew || pkm.FatefulEncounter ? pkm.IVs : enc.Version == GameVersion.GO ? pkm.SetRandomIVsGO() : enc is EncounterStatic8N && enc.LevelMin >= 35 ? pkm.SetRandomIVs(5) : enc is EncounterSlot8 || enc is EncounterStatic8U || enc is EncounterStatic8 ? pkm.SetRandomIVs(4) : pkm.SetRandomIVs(3);
             if (enc is EncounterStatic8)
             {
+                var criteria = EncounterCriteria.GetCriteria(template);
                 var sw = new Stopwatch();
                 sw.Start();
-                while (!new LegalityAnalysis(pkm).Valid && sw.ElapsedMilliseconds < 5_000)
+                while (!new LegalityAnalysis(pkm).Valid && sw.ElapsedMilliseconds < 6_000)
                 {
                     if (!SimpleEdits.TryApplyHardcodedSeedWild8((PK8)pkm, enc, pkm.IVs, shiny))
-                    {
-                        var criteria = EncounterCriteria.GetCriteria(template);
                         Overworld8RNG.ApplyDetails(pkm, criteria, shiny, pkm.FlawlessIVCount);
-                    }
                 }
             }
 
@@ -396,7 +394,7 @@ namespace SysBot.Pokemon
             pk.SetSuggestedRibbons(la.EncounterMatch);
         }
 
-        public static List<string> SpliceAtWord(string entry, int start, int length)
+        private static List<string> SpliceAtWord(string entry, int start, int length)
         {
             int counter = 0;
             var temp = entry.Contains(",") ? entry.Split(',').Skip(start) : entry.Split('\n').Skip(start);
@@ -416,6 +414,28 @@ namespace SysBot.Pokemon
                 else break;
             }
             return list;
+        }
+
+        public static List<string> ListUtilPrep(string entry)
+        {
+            var index = 0;
+            List<string> pageContent = new();
+            var emptyList = "No results found.";
+            var round = Math.Round((decimal)entry.Length / 1024, MidpointRounding.AwayFromZero);
+            if (entry.Length > 1024)
+            {
+                for (int i = 0; i <= round; i++)
+                {
+                    var splice = SpliceAtWord(entry, index, 1024);
+                    index += splice.Count;
+                    if (splice.Count == 0)
+                        break;
+
+                    pageContent.Add(string.Join(entry.Contains(",") ? ", " : "\n", splice));
+                }
+            }
+            else pageContent.Add(entry == "" ? emptyList : entry);
+            return pageContent;
         }
 
         public static string FormOutput(int species, int form, out string[] formString)
@@ -518,19 +538,19 @@ namespace SysBot.Pokemon
                     File.Create(file).Close();
                 }
 
-                T root;
+                T? root;
                 using StreamReader sr = File.OpenText(file);
                 using (JsonReader reader = new JsonTextReader(sr))
                 {
                     JsonSerializer serializer = new();
-                    root = (T)serializer.Deserialize(reader, typeof(T));
+                    root = (T?)serializer.Deserialize(reader, typeof(T));
                 }
                 return root ?? new();
             }
             else
             {
                 JsonSerializer serializer = new();
-                T root = (T)serializer.Deserialize(textReader, typeof(T));
+                T? root = (T?)serializer.Deserialize(textReader, typeof(T));
                 return root ?? new();
             }
         }
@@ -543,13 +563,13 @@ namespace SysBot.Pokemon
                 _ = Task.Run(() => SerializationMonitor(interval));
             }
 
+            while (TCRWLockEnable || NewUserLock || GiftInProgress.Contains(id) && !gift || CommandInProgress.FindAll(x => x == id).Count > 1 && !gift)
+                await Task.Delay(0_100).ConfigureAwait(false);
+
             if (!gift)
                 CommandInProgress.Add(id);
             else if (gift)
                 GiftInProgress.Add(id);
-
-            while (TCRWLockEnable || NewUserLock || GiftInProgress.Contains(id) && !gift || CommandInProgress.FindAll(x => x == id).Count > 1 && !gift)
-                await Task.Delay(0_100).ConfigureAwait(false);
 
             var user = UserInfo.Users.FirstOrDefault(x => x.UserID == id);
             if (user == null)

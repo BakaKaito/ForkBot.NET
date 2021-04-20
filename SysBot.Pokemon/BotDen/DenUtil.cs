@@ -11,8 +11,8 @@ namespace SysBot.Pokemon
     // Thanks to Zaksabeast for the FlatBuffers tutorial and den hashes, Lusamine for the wonderful IV spreads by flawless IVs, and Kurt for pkNX's easily serializable text dumps.
     public class DenUtil
     {
-        private readonly string SwordTable = "SysBot.Pokemon.BotDen.FlatbuffersResource.swordEnc.bin";
-        private readonly string ShieldTable = "SysBot.Pokemon.BotDen.FlatbuffersResource.shieldEnc.bin";
+        private static readonly string SwordTable = "SysBot.Pokemon.BotDen.FlatbuffersResource.swordEnc.bin";
+        private static readonly string ShieldTable = "SysBot.Pokemon.BotDen.FlatbuffersResource.shieldEnc.bin";
         private static readonly string SwordDistributionTable = "SysBot.Pokemon.BotDen.FlatbuffersResource.NestDistributionEncSW.json";
         private static readonly string ShieldDistributionTable = "SysBot.Pokemon.BotDen.FlatbuffersResource.NestDistributionEncSH.json";
 
@@ -122,7 +122,7 @@ namespace SysBot.Pokemon
         public static string IVSpreadByStar(string ivSpread, RaidData raidInfo, ulong seed)
         {
             var splitIV = ivSpread.Split('\n');
-            List<string> speciesList = new List<string>();
+            List<string> speciesList = new();
             if (raidInfo.RaidDistributionEncounterTable == null)
                 return string.Empty;
 
@@ -188,7 +188,7 @@ namespace SysBot.Pokemon
         {
             tables = new();
             var randroll = (int)raidInfo.Den.RandRoll;
-            var data = new ByteBuffer(new DenUtil().ReadResourceBinary(raidInfo.TrainerInfo));
+            var data = new ByteBuffer(ReadResourceBinary(raidInfo.TrainerInfo));
             var nestTable = EncounterNest8Archive.GetRootAsEncounterNest8Archive(data);
             for (int i = 0; i < nestTable.TablesLength; i++)
             {
@@ -235,7 +235,7 @@ namespace SysBot.Pokemon
             return new NestHoleDistributionEncounter();
         }
 
-        private byte[]? ReadResourceBinary(SAV8SWSH trainerInfo)
+        private static byte[]? ReadResourceBinary(SAV8SWSH trainerInfo)
         {
             using Stream stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(trainerInfo.Version == GameVersion.SW ? SwordTable : ShieldTable);
             if (stream == null)

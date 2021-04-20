@@ -249,19 +249,10 @@ namespace SysBot.Pokemon.Discord
         public async Task TradeCord()
         {
             var user = Context.User.Id.ToString();
-            await TradeCordParanoiaChecks(Context).ConfigureAwait(false);
             async Task<bool> FuncCatch()
             {
-                TCRng.ShinyRNG += TCInfo.DexCompletionCount * 2;
-                TCRng.EggShinyRNG += TCInfo.DexCompletionCount * 2;
-                if (!SettingsCheck())
+                if (!await TradeCordParanoiaChecks(Context).ConfigureAwait(false) || !SettingsCheck())
                     return false;
-
-                if (!Info.Hub.Config.TradeCord.TradeCordChannels.Contains(Context.Channel.Id.ToString()) && !Info.Hub.Config.TradeCord.TradeCordChannels.Equals(""))
-                {
-                    await ReplyAsync($"You're typing the command in the wrong channel!").ConfigureAwait(false);
-                    return false;
-                }
                 else if (!TradeCordCanCatch(user, out TimeSpan timeRemaining))
                 {
                     var embedTime = new EmbedBuilder { Color = Color.DarkBlue };
@@ -272,6 +263,8 @@ namespace SysBot.Pokemon.Discord
                 }
 
                 TradeCordCooldown(user);
+                TCRng.ShinyRNG += TCInfo.DexCompletionCount * 2;
+                TCRng.EggShinyRNG += TCInfo.DexCompletionCount * 2;
                 DateTime.TryParse(Info.Hub.Config.TradeCord.EventEnd, out DateTime endTime);
                 bool ended = endTime != default && DateTime.Now > endTime;
                 if (Info.Hub.Config.TradeCord.EnableEvent && !ended)
@@ -331,9 +324,11 @@ namespace SysBot.Pokemon.Discord
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
         public async Task TradeForTradeCord([Summary("Trade Code")] int code, [Summary("Numerical catch ID")] string id)
         {
-            await TradeCordParanoiaChecks(Context).ConfigureAwait(false);
             async Task<bool> TradeFunc()
             {
+                if (!await TradeCordParanoiaChecks(Context).ConfigureAwait(false))
+                    return false;
+
                 if (!int.TryParse(id, out int _id))
                 {
                     await Context.Message.Channel.SendMessageAsync("Please enter a numerical catch ID.").ConfigureAwait(false);
@@ -396,43 +391,54 @@ namespace SysBot.Pokemon.Discord
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
         public async Task PokeList([Summary("Species name of a Pokémon")][Remainder] string name)
         {
-            await TradeCordParanoiaChecks(Context, false).ConfigureAwait(false);
-            var filters = name.Split('=').Length == 3 ? name.Split('=')[1].ToLower().Trim() + " " + name.Split('=')[2].ToLower().Trim() : name.Split('=').Length == 2 ? name.Split('=')[1].ToLower().Trim() : "";
-            name = filters != "" ? ListNameSanitize(name.Split('=')[0].Trim()) : ListNameSanitize(name);
+            if (!await TradeCordParanoiaChecks(Context, false).ConfigureAwait(false))
+                return;
+
+            List<string> filters = name.Contains("=") ? name.Split('=').ToList() : new();
+            if (filters.Count > 0)
+            {
+                filters.RemoveAt(0);
+                name = name.Split('=')[0].Trim();
+            }
+
+            for (int i = 0; i < filters.Count; i++)
+                filters[i] = filters[i].ToLower().Trim();
+
+            name = ListNameSanitize(name);
             if (name == "")
             {
                 await Context.Message.Channel.SendMessageAsync("In order to filter a Pokémon, we need to know which Pokémon to filter.").ConfigureAwait(false);
                 return;
             }
 
-            IEnumerable<TradeExtensions.TCUserInfoRoot.Catch> matches;
-            var list = TCInfo.Catches.ToList();
-            if (filters != "" && !filters.Contains(" ") && !filters.Contains("shiny")) // Look for name and ball
-                matches = list.FindAll(x => filters.Contains(x.Ball.ToLower()) && (name == "Shinies" ? x.Shiny : name.Contains(x.Species + x.Form)) && !x.Traded);
-            else if (filters != "" && !filters.Contains(" ") && filters.Contains("shiny")) // Look for name and shiny
-                matches = list.FindAll(x => x.Shiny && name.Contains(x.Species + x.Form) && !x.Traded);
-            else if (filters != "" && filters.Contains(" ")) // Look for name, ball, and shiny
-                matches = list.FindAll(x => x.Shiny && filters.Contains(x.Ball.ToLower()) && name.Contains(x.Species + x.Form) && !x.Traded);
-            else matches = list.FindAll(x => (name == "All" ? x.Species != "" : name == "Legendaries" ? TradeExtensions.Legends.Contains(SpeciesName.GetSpeciesID(x.Species)) : name == "Egg" ? x.Egg : name == "Shinies" ? x.Shiny : x.Ball == name || x.Species == name || (x.Species + x.Form == name) || x.Form.Replace("-", "") == name) && !x.Traded);
+            var catches = TCInfo.Catches.ToList();
+            var ball = filters.FirstOrDefault(x => x != "shiny");
+            bool shiny = filters.FirstOrDefault(x => x == "shiny") != default;
+            IEnumerable<TradeExtensions.TCUserInfoRoot.Catch> matches = filters.Count switch
+            {
+                1 => catches.FindAll(x => (name == "All" ? x.Species != "" : name == "Legendaries" ? TradeExtensions.Legends.Contains(SpeciesName.GetSpeciesID(x.Species)) : name == "Egg" ? x.Egg : name == "Shinies" ? x.Shiny : (x.Species == name || (x.Species + x.Form == name) || x.Form.Replace("-", "") == name)) && (ball != default ? ball == x.Ball.ToLower() : x.Shiny) && !x.Traded),
+                2 => catches.FindAll(x => (name == "All" ? x.Species != "" : name == "Legendaries" ? TradeExtensions.Legends.Contains(SpeciesName.GetSpeciesID(x.Species)) : name == "Egg" ? x.Egg : x.Species == name || (x.Species + x.Form == name) || x.Form.Replace("-", "") == name) && x.Shiny && ball == x.Ball.ToLower() && !x.Traded),
+                _ => catches.FindAll(x => (name == "All" ? x.Species != "" : name == "Legendaries" ? TradeExtensions.Legends.Contains(SpeciesName.GetSpeciesID(x.Species)) : name == "Egg" ? x.Egg : name == "Shinies" ? x.Shiny : x.Ball == name || x.Species == name || (x.Species + x.Form == name) || x.Form.Replace("-", "") == name) && !x.Traded),
+            };
 
             HashSet<string> count = new(), countSh = new();
             if (name == "Shinies")
             {
                 foreach (var result in matches)
-                    countSh.Add($"[ID: {result.ID}] {(result.Shiny ? "★" : "")}{result.Species}{result.Form}");
+                    countSh.Add($"(__{result.ID}__) {result.Species}{result.Form}");
             }
             else
             {
                 foreach (var result in matches)
                 {
-                    var speciesString = $"[ID: {result.ID}] {(result.Shiny ? "★" : "")}{result.Species}{result.Form}";
+                    var speciesString = result.Shiny ? $"(__{result.ID}__) {result.Species}{result.Form}" : $"({result.ID}) {result.Species}{result.Form}";
                     if (result.Shiny)
                         countSh.Add(speciesString);
                     count.Add(speciesString);
                 }
             }
 
-            var entry = string.Join(", ", name == "Shinies" ? countSh.OrderBy(x => x.Split(new string[] { "] " }, StringSplitOptions.None)[1].Replace("★", "")) : count.OrderBy(x => x.Split(new string[] { "] " }, StringSplitOptions.None)[1].Replace("★", "")));
+            var entry = string.Join(", ", name == "Shinies" ? countSh.OrderBy(x => int.Parse(x.Split(' ')[0].Trim(new char[] { '(', '_', ')' }))) : count.OrderBy(x => int.Parse(x.Split(' ')[0].Trim(new char[] { '(', '_', ')' }))));
             if (entry == "")
             {
                 await Context.Message.Channel.SendMessageAsync("No results found.").ConfigureAwait(false);
@@ -451,7 +457,9 @@ namespace SysBot.Pokemon.Discord
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
         public async Task TradeCordInfo([Summary("Numerical catch ID")] string id)
         {
-            await TradeCordParanoiaChecks(Context, false).ConfigureAwait(false);
+            if (!await TradeCordParanoiaChecks(Context, false).ConfigureAwait(false))
+                return;
+
             if (!int.TryParse(id, out int _id))
             {
                 await Context.Message.Channel.SendMessageAsync("Please enter a numerical catch ID.").ConfigureAwait(false);
@@ -486,38 +494,46 @@ namespace SysBot.Pokemon.Discord
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
         public async Task MassRelease([Remainder] string species = "")
         {
-            await TradeCordParanoiaChecks(Context).ConfigureAwait(false);
-            IEnumerable<TradeExtensions.TCUserInfoRoot.Catch> matches;
-            var list = TCInfo.Catches.ToList();
-            if (species.ToLower() == "cherish")
-                matches = list.FindAll(x => !x.Traded && !x.Shiny && x.Ball == "Cherish" && x.Species != "Ditto" && x.ID != TCInfo.Daycare1.ID && x.ID != TCInfo.Daycare2.ID && TCInfo.Favorites.FirstOrDefault(z => z == x.ID) == default);
-            else if (species.ToLower() == "shiny")
-                matches = list.FindAll(x => !x.Traded && x.Shiny && x.Ball != "Cherish" && x.Species != "Ditto" && x.ID != TCInfo.Daycare1.ID && x.ID != TCInfo.Daycare2.ID && TCInfo.Favorites.FirstOrDefault(z => z == x.ID) == default);
-            else if (species != "")
+            async Task<bool> FuncMassRelease()
             {
-                species = ListNameSanitize(species);
-                matches = list.FindAll(x => !x.Traded && (species == "Shiny" ? x.Shiny : !x.Shiny) && (species == "Cherish" ? x.Ball == "Cherish" : x.Ball != "Cherish") && x.Species != "Ditto" && x.ID != TCInfo.Daycare1.ID && x.ID != TCInfo.Daycare2.ID && TCInfo.Favorites.FirstOrDefault(z => z == x.ID) == default && $"{x.Species}{x.Form}".Equals(species));
-            }
-            else matches = list.FindAll(x => !x.Traded && !x.Shiny && x.Ball != "Cherish" && x.Species != "Ditto" && x.ID != TCInfo.Daycare1.ID && x.ID != TCInfo.Daycare2.ID && TCInfo.Favorites.FirstOrDefault(z => z == x.ID) == default);
+                if (!await TradeCordParanoiaChecks(Context).ConfigureAwait(false))
+                    return false;
 
-            if (matches.Count() == 0)
-            {
-                await Context.Message.Channel.SendMessageAsync(species == "" ? "Cannot find any more non-shiny, non-Ditto, non-favorite, non-event Pokémon to release." : "Cannot find anything that could be released with the specified criteria.").ConfigureAwait(false);
+                IEnumerable<TradeExtensions.TCUserInfoRoot.Catch> matches;
+                var list = TCInfo.Catches.ToList();
+                if (species.ToLower() == "cherish")
+                    matches = list.FindAll(x => !x.Traded && !x.Shiny && x.Ball == "Cherish" && x.Species != "Ditto" && x.ID != TCInfo.Daycare1.ID && x.ID != TCInfo.Daycare2.ID && TCInfo.Favorites.FirstOrDefault(z => z == x.ID) == default);
+                else if (species.ToLower() == "shiny")
+                    matches = list.FindAll(x => !x.Traded && x.Shiny && x.Ball != "Cherish" && x.Species != "Ditto" && x.ID != TCInfo.Daycare1.ID && x.ID != TCInfo.Daycare2.ID && TCInfo.Favorites.FirstOrDefault(z => z == x.ID) == default);
+                else if (species != "")
+                {
+                    species = ListNameSanitize(species);
+                    matches = list.FindAll(x => !x.Traded && !x.Shiny && x.Ball != "Cherish" && $"{x.Species}{x.Form}".Equals(species) && x.ID != TCInfo.Daycare1.ID && x.ID != TCInfo.Daycare2.ID && TCInfo.Favorites.FirstOrDefault(z => z == x.ID) == default);
+                }
+                else matches = list.FindAll(x => !x.Traded && !x.Shiny && x.Ball != "Cherish" && x.Species != "Ditto" && x.ID != TCInfo.Daycare1.ID && x.ID != TCInfo.Daycare2.ID && TCInfo.Favorites.FirstOrDefault(z => z == x.ID) == default);
+
+                if (matches.Count() == 0)
+                {
+                    await Context.Message.Channel.SendMessageAsync(species == "" ? "Cannot find any more non-shiny, non-Ditto, non-favorite, non-event Pokémon to release." : "Cannot find anything that could be released with the specified criteria.").ConfigureAwait(false);
+                    return false;
+                }
+
+                foreach (var val in matches)
+                {
+                    File.Delete(val.Path);
+                    TCInfo.Catches.Remove(val);
+                }
+
+                await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
+                var embed = new EmbedBuilder { Color = Color.DarkBlue };
+                var name = $"{Context.User.Username}'s Mass Release";
+                var value = species == "" ? "Every non-shiny Pokémon was released, excluding Ditto, favorites, events, and those in daycare." : $"Every {(species.ToLower() == "shiny" ? "shiny Pokémon" : species.ToLower() == "cherish" ? "event Pokémon" : $"non-shiny {species}")} was released, excluding favorites{(species.ToLower() == "cherish" ? "" : ", events,")} and those in daycare.";
+                await EmbedUtil(embed, name, value).ConfigureAwait(false);
+                return true;
+            }
+
+            if (!await FuncMassRelease().ConfigureAwait(false))
                 TradeExtensions.CommandInProgress.RemoveAll(x => x == TCInfo.UserID);
-                return;
-            }
-
-            foreach (var val in matches)
-            {
-                File.Delete(val.Path);
-                TCInfo.Catches.Remove(val);
-            }
-
-            await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
-            var embed = new EmbedBuilder { Color = Color.DarkBlue };
-            var name = $"{Context.User.Username}'s Mass Release";
-            var value = species == "" ? "Every non-shiny Pokémon was released, excluding Ditto, favorites, events, and those in daycare." : $"Every {(species.ToLower() == "shiny" ? "shiny Pokémon" : species.ToLower() == "cherish" ? "event Pokémon" : $"non-shiny {species}")} was released, excluding favorites{(species.ToLower() == "cherish" ? "" : ", events,")} and those in daycare.";
-            await EmbedUtil(embed, name, value).ConfigureAwait(false);
         }
 
         [Command("TradeCordRelease")]
@@ -526,9 +542,11 @@ namespace SysBot.Pokemon.Discord
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
         public async Task Release([Summary("Numerical catch ID")] string id)
         {
-            await TradeCordParanoiaChecks(Context).ConfigureAwait(false);
             async Task<bool> FuncRelease()
             {
+                if (!await TradeCordParanoiaChecks(Context).ConfigureAwait(false))
+                    return false;
+
                 if (!int.TryParse(id, out int _id))
                 {
                     await Context.Message.Channel.SendMessageAsync("Please enter a numerical catch ID.").ConfigureAwait(false);
@@ -568,7 +586,9 @@ namespace SysBot.Pokemon.Discord
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
         public async Task DaycareInfo()
         {
-            await TradeCordParanoiaChecks(Context, false).ConfigureAwait(false);
+            if (!await TradeCordParanoiaChecks(Context, false).ConfigureAwait(false))
+                return;
+
             if (TCInfo.Daycare1.ID == 0 && TCInfo.Daycare2.ID == 0)
             {
                 await Context.Message.Channel.SendMessageAsync("You do not have anything in daycare.").ConfigureAwait(false);
@@ -595,11 +615,13 @@ namespace SysBot.Pokemon.Discord
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
         public async Task Daycare([Summary("Action to do (withdraw, deposit)")] string action, [Summary("Catch ID or elaborate action (\"All\" if withdrawing")] string id)
         {
-            await TradeCordParanoiaChecks(Context).ConfigureAwait(false);
-            id = id.ToLower();
-            action = action.ToLower();
             async Task<bool> FuncDC()
             {
+                if (!await TradeCordParanoiaChecks(Context).ConfigureAwait(false))
+                    return false;
+
+                id = id.ToLower();
+                action = action.ToLower();
                 if (!int.TryParse(id, out _) && id != "all")
                 {
                     await Context.Message.Channel.SendMessageAsync("Please enter a numerical catch ID.").ConfigureAwait(false);
@@ -697,9 +719,11 @@ namespace SysBot.Pokemon.Discord
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
         public async Task Gift([Summary("Numerical catch ID")] string id, [Summary("User mention")] string _)
         {
-            await TradeCordParanoiaChecks(Context).ConfigureAwait(false);
             async Task<bool> FuncGift()
             {
+                if (!await TradeCordParanoiaChecks(Context).ConfigureAwait(false))
+                    return false;
+
                 if (!int.TryParse(id, out int _int))
                 {
                     await Context.Message.Channel.SendMessageAsync("Please enter a numerical catch ID.").ConfigureAwait(false);
@@ -772,9 +796,11 @@ namespace SysBot.Pokemon.Discord
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
         public async Task TrainerInfoSet()
         {
-            await TradeCordParanoiaChecks(Context).ConfigureAwait(false);
             async Task<bool> FuncTrainerSet()
             {
+                if (!await TradeCordParanoiaChecks(Context).ConfigureAwait(false))
+                    return false;
+
                 var attachments = Context.Message.Attachments;
                 if (attachments.Count == 0 || attachments.Count > 1)
                 {
@@ -821,7 +847,9 @@ namespace SysBot.Pokemon.Discord
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
         public async Task TrainerInfo()
         {
-            await TradeCordParanoiaChecks(Context, false).ConfigureAwait(false);
+            if (!await TradeCordParanoiaChecks(Context, false).ConfigureAwait(false))
+                return;
+
             var embed = new EmbedBuilder { Color = Color.DarkBlue };
             var name = $"{Context.User.Username}'s Trainer Info";
             var value = $"\n**OT:** {(TCInfo.OTName == "" ? "Not set." : TCInfo.OTName)}" +
@@ -838,7 +866,9 @@ namespace SysBot.Pokemon.Discord
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
         public async Task TradeCordFavorites()
         {
-            await TradeCordParanoiaChecks(Context, false).ConfigureAwait(false);
+            if (!await TradeCordParanoiaChecks(Context, false).ConfigureAwait(false))
+                return;
+
             if (TCInfo.Favorites.Count == 0)
             {
                 await Context.Message.Channel.SendMessageAsync($"You don't have anything in favorites yet!").ConfigureAwait(false);
@@ -849,10 +879,10 @@ namespace SysBot.Pokemon.Discord
             foreach (var fav in TCInfo.Favorites)
             {
                 var match = TCInfo.Catches.FirstOrDefault(x => x.ID == fav);
-                names.Add($"[ID: {match.ID}] {(match.Shiny ? "★" : "")}{match.Species}{match.Form} ({match.Ball} Ball)");
+                names.Add(match.Shiny ? $"(__{match.ID}__) {match.Species}{match.Form}" : $"({match.ID}) {match.Species}{match.Form}");
             }
 
-            var entry = string.Join(", ", names.OrderBy(x => x.Split(new string[] { "] " }, StringSplitOptions.None)[1].Replace("★", "")));
+            var entry = string.Join(", ", names.OrderBy(x => int.Parse(x.Split(' ')[0].Trim(new char[] { '(', '_', ')' }))));
             var msg = $"{Context.User.Username}'s Favorites";
             await ListUtil(msg, entry).ConfigureAwait(false);
         }
@@ -863,34 +893,43 @@ namespace SysBot.Pokemon.Discord
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
         public async Task TradeCordFavorites([Summary("Catch ID")] string id)
         {
-            await TradeCordParanoiaChecks(Context).ConfigureAwait(false);
-            if (!int.TryParse(id, out int _id))
+            async Task<bool> FuncFav()
             {
-                await Context.Message.Channel.SendMessageAsync("Please enter a numerical catch ID.").ConfigureAwait(false);
-                TradeExtensions.CommandInProgress.RemoveAll(x => x == TCInfo.UserID);
-                return;
+                if (!await TradeCordParanoiaChecks(Context).ConfigureAwait(false))
+                    return false;
+
+                if (!int.TryParse(id, out int _id))
+                {
+                    await Context.Message.Channel.SendMessageAsync("Please enter a numerical catch ID.").ConfigureAwait(false);
+                    TradeExtensions.CommandInProgress.RemoveAll(x => x == TCInfo.UserID);
+                    return false;
+                }
+
+                var match = TCInfo.Catches.FirstOrDefault(x => x.ID == _id && !x.Traded);
+                if (match == null)
+                {
+                    await Context.Message.Channel.SendMessageAsync("Cannot find this Pokémon.").ConfigureAwait(false);
+                    TradeExtensions.CommandInProgress.RemoveAll(x => x == TCInfo.UserID);
+                    return false;
+                }
+
+                var fav = TCInfo.Favorites.FirstOrDefault(x => x == _id);
+                if (fav == default)
+                {
+                    TCInfo.Favorites.Add(_id);
+                    await Context.Message.Channel.SendMessageAsync($"{Context.User.Username}, added your {(match.Shiny ? "★" : "")}{match.Species}{match.Form} to favorites!").ConfigureAwait(false);
+                }
+                else if (fav == _id)
+                {
+                    TCInfo.Favorites.Remove(fav);
+                    await Context.Message.Channel.SendMessageAsync($"{Context.User.Username}, removed your {(match.Shiny ? "★" : "")}{match.Species}{match.Form} from favorites!").ConfigureAwait(false);
+                }
+                await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
+                return true;
             }
 
-            var match = TCInfo.Catches.FirstOrDefault(x => x.ID == _id && !x.Traded);
-            if (match == null)
-            {
-                await Context.Message.Channel.SendMessageAsync("Cannot find this Pokémon.").ConfigureAwait(false);
+            if (!await FuncFav().ConfigureAwait(false))
                 TradeExtensions.CommandInProgress.RemoveAll(x => x == TCInfo.UserID);
-                return;
-            }
-
-            var fav = TCInfo.Favorites.FirstOrDefault(x => x == _id);
-            if (fav == default)
-            {
-                TCInfo.Favorites.Add(_id);
-                await Context.Message.Channel.SendMessageAsync($"{Context.User.Username}, added your {(match.Shiny ? "★" : "")}{match.Species}{match.Form} to favorites!").ConfigureAwait(false);
-            }
-            else if (fav == _id)
-            {
-                TCInfo.Favorites.Remove(fav);
-                await Context.Message.Channel.SendMessageAsync($"{Context.User.Username}, removed your {(match.Shiny ? "★" : "")}{match.Species}{match.Form} from favorites!").ConfigureAwait(false);
-            }
-            await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
         }
 
         [Command("TradeCordDex")]
@@ -899,7 +938,9 @@ namespace SysBot.Pokemon.Discord
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
         public async Task TradeCordDex([Summary("Optional parameter \"Missing\" for missing entries.")] string mode = "")
         {
-            await TradeCordParanoiaChecks(Context, false).ConfigureAwait(false);
+            if (!await TradeCordParanoiaChecks(Context, false).ConfigureAwait(false))
+                return;
+
             var embed = new EmbedBuilder { Color = Color.DarkBlue };
             var name = $"{Context.User.Username}'s {(mode.ToLower() == "missing" ? "Missing Entries" : "Dex Info")}";
             var value = $"\n**Pokédex:** {TCInfo.Dex.Count}/664" +
@@ -964,9 +1005,6 @@ namespace SysBot.Pokemon.Discord
 
         private bool TradeCordCanCatch(string user, out TimeSpan timeRemaining)
         {
-            if (Info.Hub.Config.TradeCord.TradeCordCooldown < 0)
-                Info.Hub.Config.TradeCord.TradeCordCooldown = 0;
-
             var line = TradeExtensions.TradeCordCooldown.FirstOrDefault(z => z.Contains(user));
             DateTime.TryParse(line != default ? line.Split(',')[1] : "", out DateTime time);
             var timer = time.AddSeconds(Info.Hub.Config.TradeCord.TradeCordCooldown);
@@ -977,8 +1015,14 @@ namespace SysBot.Pokemon.Discord
             return true;
         }
 
-        private async Task TradeCordParanoiaChecks(SocketCommandContext context, bool update = true)
+        private async Task<bool> TradeCordParanoiaChecks(SocketCommandContext context, bool update = true)
         {
+            if (!Info.Hub.Config.TradeCord.TradeCordChannels.Contains(Context.Channel.Id.ToString()) && !Info.Hub.Config.TradeCord.TradeCordChannels.Equals(""))
+            {
+                await ReplyAsync($"You're typing the command in the wrong channel!").ConfigureAwait(false);
+                return false;
+            }
+
             var user = context.User.Id.ToString();
             if (!Directory.Exists("TradeCord") || !Directory.Exists($"TradeCord\\Backup\\{user}"))
             {
@@ -997,11 +1041,12 @@ namespace SysBot.Pokemon.Discord
                         TCInfo.Catches.Remove(trade);
                     else trade.Traded = false;
                 }
-                await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
+                await TradeExtensions.UpdateUserInfo(TCInfo, false).ConfigureAwait(false);
             }
 
             if (!update)
                 TradeExtensions.CommandInProgress.RemoveAll(x => x == TCInfo.UserID);
+            return true;
         }
 
         private bool SettingsCheck()
@@ -1013,7 +1058,7 @@ namespace SysBot.Pokemon.Discord
                 Hub.Config.Legality.AllowTrainerDataOverride = true;
 
             List<int> rateCheck = new();
-            IEnumerable<int> p = new[] { Info.Hub.Config.TradeCord.CatchRate, Info.Hub.Config.TradeCord.CherishRate, Info.Hub.Config.TradeCord.EggRate, Info.Hub.Config.TradeCord.GmaxRate, Info.Hub.Config.TradeCord.SquareShinyRate, Info.Hub.Config.TradeCord.StarShinyRate };
+            IEnumerable<int> p = new[] { Info.Hub.Config.TradeCord.TradeCordCooldown, Info.Hub.Config.TradeCord.CatchRate, Info.Hub.Config.TradeCord.CherishRate, Info.Hub.Config.TradeCord.EggRate, Info.Hub.Config.TradeCord.GmaxRate, Info.Hub.Config.TradeCord.SquareShinyRate, Info.Hub.Config.TradeCord.StarShinyRate };
             rateCheck.AddRange(p);
             if (rateCheck.Any(x => x < 0 || x > 100))
             {
@@ -1026,7 +1071,7 @@ namespace SysBot.Pokemon.Discord
         private bool CanGenerateEgg(out int evo1, out int evo2)
         {
             evo1 = evo2 = 0;
-            if (TCInfo.Daycare1.Species == 0 || TCInfo.Daycare2.Species == 0)
+            if (TCInfo.Daycare1.ID == 0 || TCInfo.Daycare2.ID == 0)
                 return false;
 
             var pkm1 = AutoLegalityWrapper.GetTrainerInfo(8).GetLegal(AutoLegalityWrapper.GetTemplate(new ShowdownSet(SpeciesName.GetSpeciesNameGeneration(TCInfo.Daycare1.Species, 2, 8))), out _);
@@ -1074,25 +1119,8 @@ namespace SysBot.Pokemon.Discord
 
         private async Task ListUtil(string nameMsg, string entry)
         {
-            var index = 0;
-            List<string> pageContent = new();
-            var emptyList = "No results found.";
+            List<string> pageContent = TradeExtensions.ListUtilPrep(entry);
             bool canReact = Context.Guild.CurrentUser.GetPermissions(Context.Channel as IGuildChannel).AddReactions;
-            var round = Math.Round((decimal)entry.Length / 1024, MidpointRounding.AwayFromZero);
-            if (entry.Length > 1024)
-            {
-                for (int i = 0; i <= round; i++)
-                {
-                    var splice = TradeExtensions.SpliceAtWord(entry, index, 1024);
-                    index += splice.Count;
-                    if (splice.Count == 0)
-                        break;
-
-                    pageContent.Add(string.Join(entry.Contains(",") ? ", " : "\n", splice));
-                }
-            }
-            else pageContent.Add(entry == "" ? emptyList : entry);
-
             var embed = new EmbedBuilder { Color = Color.DarkBlue }.AddField(x =>
             {
                 x.Name = nameMsg;
@@ -1122,33 +1150,64 @@ namespace SysBot.Pokemon.Discord
         {
             int page = 0;
             var userId = Context.User.Id;
-            IEmote[] reactions = { new Emoji("⬅️"), new Emoji("➡️") };
+            IEmote[] reactions = { new Emoji("⬅️"), new Emoji("➡️"), new Emoji("⬆️"), new Emoji("⬇️") };
             await msg.AddReactionsAsync(reactions).ConfigureAwait(false);
             var sw = new Stopwatch();
             var embed = new EmbedBuilder { Color = Color.DarkBlue }.AddField(x => { x.Name = nameMsg; x.IsInline = false; }).WithFooter(x => { x.IconUrl = "https://i.imgur.com/nXNBrlr.png"; });
-
             sw.Start();
+
             while (sw.ElapsedMilliseconds < 20_000)
             {
-                var collectorBack = await msg.GetReactionUsersAsync(reactions[0], 100).FlattenAsync().ConfigureAwait(false);
-                var collectorForward = await msg.GetReactionUsersAsync(reactions[1], 100).FlattenAsync().ConfigureAwait(false);
-                IUser? UserReactionBack = collectorBack.FirstOrDefault(x => x.Id == userId && !x.IsBot);
-                IUser? UserReactionForward = collectorForward.FirstOrDefault(x => x.Id == userId && !x.IsBot);
-                if (UserReactionBack != null && page > 0)
+                await msg.UpdateAsync().ConfigureAwait(false);
+                var react = msg.Reactions.FirstOrDefault(x => x.Value.ReactionCount > 1 && x.Value.IsMe);
+                if (react.Key == default)
+                    continue;
+
+                if (react.Key.Name == reactions[0].Name || react.Key.Name == reactions[1].Name)
                 {
-                    page--;
+                    var reactUsers = await msg.GetReactionUsersAsync(reactions[react.Key.Name == reactions[0].Name ? 0 : 1], 100).FlattenAsync().ConfigureAwait(false);
+                    var usr = reactUsers.FirstOrDefault(x => x.Id == userId && !x.IsBot);
+                    if (usr == default)
+                        continue;
+
+                    if (react.Key.Name == reactions[0].Name)
+                    {
+                        if (page == 0)
+                            page = pageContent.Count - 1;
+                        else page--;
+                    }
+                    else
+                    {
+                        if (page + 1 == pageContent.Count)
+                            page = 0;
+                        else page++;
+                    }
+
                     embed.Fields[0].Value = pageContent[page];
                     embed.Footer.Text = $"Page {page + 1} of {pageContent.Count}";
-                    await msg.RemoveReactionAsync(reactions[0], UserReactionBack);
+                    await msg.RemoveReactionAsync(reactions[react.Key.Name == reactions[0].Name ? 0 : 1], usr);
                     await msg.ModifyAsync(msg => msg.Embed = embed.Build()).ConfigureAwait(false);
                     sw.Restart();
                 }
-                else if (UserReactionForward != null && page < pageContent.Count - 1)
+                else if (react.Key.Name == reactions[2].Name || react.Key.Name == reactions[3].Name)
                 {
-                    page++;
+                    var reactUsers = await msg.GetReactionUsersAsync(reactions[react.Key.Name == reactions[2].Name ? 2 : 3], 100).FlattenAsync().ConfigureAwait(false);
+                    var usr = reactUsers.FirstOrDefault(x => x.Id == userId && !x.IsBot);
+                    if (usr == default)
+                        continue;
+
+                    List<string> tempList = new();
+                    foreach (var p in pageContent)
+                    {
+                        var split = p.Replace(", ", ",").Split(',');
+                        tempList.AddRange(split);
+                    }
+
+                    var tempEntry = string.Join(", ", react.Key.Name == reactions[2].Name ? tempList.OrderBy(x => x.Split(' ')[1]) : tempList.OrderByDescending(x => x.Split(' ')[1]));
+                    pageContent = TradeExtensions.ListUtilPrep(tempEntry);
                     embed.Fields[0].Value = pageContent[page];
-                    embed.Footer.Text = $"Page {page + 1 } of {pageContent.Count}";
-                    await msg.RemoveReactionAsync(reactions[1], UserReactionForward);
+                    embed.Footer.Text = $"Page {page + 1} of {pageContent.Count}";
+                    await msg.RemoveReactionAsync(reactions[react.Key.Name == reactions[2].Name ? 2 : 3], usr);
                     await msg.ModifyAsync(msg => msg.Embed = embed.Build()).ConfigureAwait(false);
                     sw.Restart();
                 }

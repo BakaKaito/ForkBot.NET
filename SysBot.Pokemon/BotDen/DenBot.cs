@@ -11,7 +11,7 @@ namespace SysBot.Pokemon
         private readonly PokeTradeHub<PK8> Hub;
         private readonly DenSettings Settings;
         private readonly RaidBot Raid;
-        private DenUtil.RaidData RaidInfo = new DenUtil.RaidData();
+        private DenUtil.RaidData RaidInfo = new();
         private ulong InitialSeed;
         private ulong DestinationSeed;
 
@@ -74,7 +74,7 @@ namespace SysBot.Pokemon
                     DestinationSeed = DenUtil.GetTargetSeed(RaidInfo.Den.Seed, skips);
                     Log($"\nInitial seed: {InitialSeed:X16}.\nDestination seed: {DestinationSeed:X16}.");
                     await PerformDaySkip(skips, token).ConfigureAwait(false);
-                    if (!await SkipCorrection(skips - 1, token).ConfigureAwait(false))
+                    if (!await SkipCorrection(skips, token).ConfigureAwait(false))
                         return;
 
                     EchoUtil.Echo($"{(!Hub.Config.StopConditions.PingOnMatch.Equals(string.Empty) ? $"<@{Hub.Config.StopConditions.PingOnMatch}> " : "")}Skipping complete\n");
@@ -128,20 +128,22 @@ namespace SysBot.Pokemon
             var lastQuarterLog = Math.Round(skips * 0.75, 0, MidpointRounding.ToEven);
             int reset = Settings.TimeReset == TimeReset.Reset ? skips : 0;
             int resetNTP = Settings.TimeReset == TimeReset.ResetNTP ? 1 : 0;
-            EchoUtil.Echo($"Beginning to skip {(skips > 1 ? $"{skips} frames" : "1 frame")}. Skipping should take around {(timeRemaining.Hours == 0 ? "" : timeRemaining.Hours + "h:")}{(timeRemaining.Minutes == 0 ? "" : timeRemaining.Minutes + "m:")}{(timeRemaining.Seconds < 1 ? "1s" : timeRemaining.Seconds + "s")}.");
-            
-            for (int i = 0; i < skips; i++)
+            EchoUtil.Echo($"Beginning to skip {(skips > 1 ? $"{skips} frames" : "1 frame")}. Skipping should take around {(timeRemaining.Days == 0 ? "" : timeRemaining.Days + "d:")}{(timeRemaining.Hours == 0 ? "" : timeRemaining.Hours + "h:")}{(timeRemaining.Minutes == 0 ? "" : timeRemaining.Minutes + "m:")}{(timeRemaining.Seconds < 1 ? "1s" : timeRemaining.Seconds + "s")}.");
+
+            int remaining = await SkipCheck(skips, 0, token).ConfigureAwait(false);
+            while (remaining != 0)
             {
-                if (i == firstQuarterLog | i == halfLog | i == lastQuarterLog)
+                if (remaining == firstQuarterLog | remaining == halfLog | remaining == lastQuarterLog)
                 {
-                    timeRemaining = TimeSpan.FromMilliseconds((0_360 + Settings.SkipDelay) * (skips - i));
-                    Log($"{(skips - i > 1 ? $"{skips - i} skips" : "1 skip")} and around {(timeRemaining.Hours == 0 ? "" : timeRemaining.Hours + "h:")}{(timeRemaining.Minutes == 0 ? "" : timeRemaining.Minutes + "m:")}{(timeRemaining.Seconds < 1 ? "1s" : timeRemaining.Seconds + "s")} left.");
+                    timeRemaining = TimeSpan.FromMilliseconds((0_360 + Settings.SkipDelay) * remaining);
+                    Log($"{(remaining > 1 ? $"{remaining} skips" : "1 skip")} and around {(timeRemaining.Days == 0 ? "" : timeRemaining.Days + "d:")}{(timeRemaining.Hours == 0 ? "" : timeRemaining.Hours + "h:")}{(timeRemaining.Minutes == 0 ? "" : timeRemaining.Minutes + "m:")}{(timeRemaining.Seconds < 1 ? "1s" : timeRemaining.Seconds + "s")} left.");
                 }
 
                 await DaySkip(reset, 0, token).ConfigureAwait(false);
                 await Task.Delay(0_360 + Settings.SkipDelay).ConfigureAwait(false);
-                if (i == lastQuarterLog || i + 2 == skips)
-                    skips = await SkipCheck(skips, i, token).ConfigureAwait(false);
+                --remaining;
+                if (remaining == lastQuarterLog || remaining + 3 == skips)
+                    remaining = await SkipCheck(skips, remaining, token).ConfigureAwait(false);
             }
 
             if (resetNTP == 1)
@@ -189,7 +191,7 @@ namespace SysBot.Pokemon
             bool dateRolled = remaining < skips - skipsDone;
             if (dateRolled)
                 return remaining + skipsDone;
-            else return skips;
+            else return remaining;
         }
 
         private async Task<byte[]> DenData(PokeTradeHub<PK8> hub, CancellationToken token) => await Connection.ReadBytesAsync(DenUtil.GetDenOffset(hub), 0x18, token).ConfigureAwait(false);
