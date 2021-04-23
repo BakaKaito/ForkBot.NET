@@ -178,7 +178,7 @@ namespace SysBot.Pokemon.Discord
             var sav = AutoLegalityWrapper.GetTrainerInfo(8);
             var pkm = sav.GetLegal(template, out var result);
             pkm = PKMConverter.ConvertToType(pkm, typeof(PK8), out _) ?? pkm;
-            if (pkm.HeldItem == 0)
+            if (pkm.HeldItem == 0 && !Info.Hub.Config.Trade.Memes)
             {
                 await ReplyAsync($"{Context.User.Username}, the item you entered wasn't recognized.").ConfigureAwait(false);
                 return;
