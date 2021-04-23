@@ -636,7 +636,7 @@ namespace SysBot.Pokemon
             var alcremieDeco = (uint)(pkm.Species == (int)Species.Alcremie ? pkm.Data[0xE4] : 0);
             bool md = false;
             bool fd = false;
-            var baseLink = "https://projectpokemon.org/images/sprites-models/homeimg/poke_capture_0001_000_mf_n_00000000_f_n.png".Split('_');
+            var baseLink = "https://raw.githubusercontent.com/BakaKaito/HomeImages/main/homeimg/128x128/poke_capture_0001_000_mf_n_00000000_f_n.png".Split('_');
             if (GenderDependent.Contains(pkm.Species) && !canGmax && pkm.Form == 0)
             {
                 if (pkm.Gender == 0)
