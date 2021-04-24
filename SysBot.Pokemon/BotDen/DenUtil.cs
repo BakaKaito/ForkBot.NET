@@ -42,6 +42,7 @@ namespace SysBot.Pokemon
             public uint GuaranteedIVs { get => Settings.DenFilters.GuaranteedIVs; }
             public long SearchRange { get => Settings.SearchRange; }
             public DenSettings Settings { get => settings ?? new(); set => settings = value; }
+            public uint DenID { get; set; }
         };
 
         public class NestHoleDistributionEncounterTable
@@ -67,9 +68,9 @@ namespace SysBot.Pokemon
             public uint MaxRank { get; set; }
         }
 
-        public static uint GetDenOffset(PokeTradeHub<PK8> hub)
+        public static uint GetDenOffset(uint id, DenType type, out uint denID)
         {
-            uint denID = GetDenID(hub.Config.Den);
+            denID = GetDenID(id, type);
             uint shiftedOffset = PokeDataOffsets.DenOffset;
             if (denID >= 190)
                 return shiftedOffset += 0x300 + (denID * 0x18);
@@ -78,13 +79,13 @@ namespace SysBot.Pokemon
             else return shiftedOffset + (denID * 0x18);
         }
 
-        public static uint GetDenID(DenSettings settings)
+        public static uint GetDenID(uint id, DenType type)
         {
-            uint denID = settings.DenType switch
+            uint denID = type switch
             {
-                DenType.Vanilla => settings.DenID <= 100 && settings.DenID > 0 ? _ = settings.DenID - 1 : 99,
-                DenType.IoA => settings.DenID <= 90 && settings.DenID > 0 ? _ = settings.DenID - 1 + 100 : 189,
-                DenType.CT => settings.DenID <= 86 && settings.DenID > 0 ? _ = settings.DenID - 1 + 190 : 276,
+                DenType.Vanilla => id <= 100 && id > 0 ? _ = id - 1 : 99,
+                DenType.IoA => id <= 90 && id > 0 ? _ = id - 1 + 100 : 189,
+                DenType.CT => id <= 86 && id > 0 ? _ = id - 1 + 190 : 276,
                 _ => 1,
             };
             return denID;
@@ -196,23 +197,41 @@ namespace SysBot.Pokemon
                 if (!table.HasValue)
                     return new EncounterNest8();
 
-                var denhash = denHashes[GetDenID(raidInfo.Settings), raidInfo.Den.IsRare ? 1 : 0];
+                var denhash = denHashes[raidInfo.DenID, raidInfo.Den.IsRare ? 1 : 0];
                 if (table.Value.TableID == denhash && table.Value.GameVersion == (raidInfo.TrainerInfo.Version == GameVersion.SW ? 1 : 2))
                 {
                     tables = table.Value;
                     var entryLength = table.Value.EntriesLength;
+                    int prob = 1;
                     for (int p = 0; p < entryLength; p++)
                     {
                         var entry = table.Value.Entries(p);
                         if (!entry.HasValue)
                             return new EncounterNest8();
 
-                        var prob = (int)entry.Value.Probabilities(raidInfo.Den.Stars);
-                        randroll -= prob;
-                        if (randroll < 0)
+                        prob += (int)entry.Value.Probabilities(raidInfo.Den.Stars);
+                        if (prob > randroll)
                             return (EncounterNest8)entry;
                     }
                 }
+            }
+            return new EncounterNest8();
+        }
+
+        public static EncounterNest8 GetSpawnShort(RaidData raidInfo)
+        {
+            var randroll = (int)raidInfo.Den.RandRoll;
+            var entryLength = raidInfo.RaidEncounterTable.EntriesLength;
+            int prob = 1;
+            for (int p = 0; p < entryLength; p++)
+            {
+                var entry = raidInfo.RaidEncounterTable.Entries(p);
+                if (!entry.HasValue)
+                    return new EncounterNest8();
+
+                prob += (int)entry.Value.Probabilities(raidInfo.Den.Stars);
+                if (prob > randroll)
+                    return (EncounterNest8)entry;
             }
             return new EncounterNest8();
         }
@@ -224,12 +243,12 @@ namespace SysBot.Pokemon
             if (nestEventTable == null)
                 return new NestHoleDistributionEncounter();
 
-            var entries = nestEventTable.Entries.ToList();
-            for (int p = 0; p < entries.Count; p++)
+            var entries = nestEventTable.Entries.ToArray();
+            int prob = 1;
+            for (int p = 0; p < entries.Length; p++)
             {
-                var prob = (int)entries[p].Probabilities[raidInfo.Den.Stars];
-                randroll -= prob;
-                if (randroll < 0)
+                prob += (int)entries[p].Probabilities[raidInfo.Den.Stars];
+                if (prob > randroll)
                     return entries[p];
             }
             return new NestHoleDistributionEncounter();
@@ -350,7 +369,7 @@ namespace SysBot.Pokemon
         { 1676899641446321509u, 13439823650166594690u },
         { 1676055216516044686u, 13441642242399277234u },
         { 1676055216516044686u, 13441642242399277234u },
-        { 13438843985306047914u, 1679871621376808167u },
+        { 1679871621376808167u, 13438843985306047914u },
         { 1676048619446275420u, 13438843985306047914u },
         { 1676055216516044686u, 4973136007537393934u },
         { 1676895243399808665u, 13440791220399231145u },

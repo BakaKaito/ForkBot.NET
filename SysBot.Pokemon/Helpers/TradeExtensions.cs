@@ -17,7 +17,6 @@ namespace SysBot.Pokemon
         public static byte[] Data = new byte[] { };
         public static bool TCInitialized;
         private static bool TCRWLockEnable;
-        private static bool NewUserLock = false;
         public static readonly List<ulong> CommandInProgress = new();
         private static readonly List<ulong> GiftInProgress = new();
         public static List<string> TradeCordPath = new();
@@ -177,10 +176,13 @@ namespace SysBot.Pokemon
             {
                 if (sw.ElapsedMilliseconds / 1000 >= interval && !TCRWLockEnable)
                 {
+                    if (File.Exists(InfoPath))
+                        File.Copy(InfoPath, "TradeCord\\UserInfo_backup.json", true);
+
                     SerializeInfo(UserInfo, InfoPath, true);
                     sw.Restart();
                 }
-                else await Task.Delay(15_000).ConfigureAwait(false);
+                else await Task.Delay(10_000).ConfigureAwait(false);
             }
         }
 
@@ -247,12 +249,16 @@ namespace SysBot.Pokemon
             if (enc is EncounterStatic8)
             {
                 var criteria = EncounterCriteria.GetCriteria(template);
-                var sw = new Stopwatch();
-                sw.Start();
-                while (!new LegalityAnalysis(pkm).Valid && sw.ElapsedMilliseconds < 6_000)
+                List<int[]> compIVs = new() { new int[] { 31, 0, 31, 31, 31, 31 }, new int[] { 31, 31, 31, 0, 31, 31 }, new int[] { 31, 0, 31, 0, 31, 31 } };
+                int i = 0;
+                while (!new LegalityAnalysis(pkm).Valid && i <= 100_000)
                 {
+                    if (i == 100_000)
+                        pkm.IVs = compIVs[Random.Next(compIVs.Count)];
+
                     if (!SimpleEdits.TryApplyHardcodedSeedWild8((PK8)pkm, enc, pkm.IVs, shiny))
                         Overworld8RNG.ApplyDetails(pkm, criteria, shiny, pkm.FlawlessIVCount);
+                    i++;
                 }
             }
 
@@ -563,7 +569,7 @@ namespace SysBot.Pokemon
                 _ = Task.Run(() => SerializationMonitor(interval));
             }
 
-            while (TCRWLockEnable || NewUserLock || GiftInProgress.Contains(id) && !gift || CommandInProgress.FindAll(x => x == id).Count > 1 && !gift)
+            while (TCRWLockEnable || GiftInProgress.Contains(id) && !gift || CommandInProgress.FindAll(x => x == id).Count > 1 && !gift)
                 await Task.Delay(0_100).ConfigureAwait(false);
 
             if (!gift)
@@ -573,11 +579,7 @@ namespace SysBot.Pokemon
 
             var user = UserInfo.Users.FirstOrDefault(x => x.UserID == id);
             if (user == null)
-            {
-                NewUserLock = true;
                 user = new TCUserInfoRoot.TCUserInfo { UserID = id };
-                await UpdateUserInfo(user).ConfigureAwait(false);
-            }
             return user;
         }
 
@@ -588,7 +590,6 @@ namespace SysBot.Pokemon
 
             UserInfo.Users.RemoveWhere(x => x.UserID == info.UserID);
             UserInfo.Users.Add(info);
-            NewUserLock = false;
             if (remove)
                 CommandInProgress.RemoveAll(x => x == info.UserID);
             if (gift)
@@ -603,8 +604,7 @@ namespace SysBot.Pokemon
             if (tc)
                 TCRWLockEnable = true;
 
-            bool success = false;
-            while (!success)
+            while (true)
             {
                 try
                 {
@@ -612,19 +612,36 @@ namespace SysBot.Pokemon
                     using StreamWriter writer = File.CreateText(filePath);
                     serializer.Formatting = Formatting.Indented;
                     serializer.Serialize(writer, root);
-                    success = true;
                 }
-                catch (IOException)
+                catch
                 {
                     Thread.Sleep(0_100);
                 }
 
-                if (success)
+                if (TestJsonIntegrity())
                     break;
             }
 
             if (tc)
                 TCRWLockEnable = false;
+        }
+
+        private static bool TestJsonIntegrity()
+        {
+            try
+            {
+                using StreamReader sr = File.OpenText(InfoPath);
+                using (JsonReader reader = new JsonTextReader(sr))
+                {
+                    JsonSerializer serializer = new();
+                    TCUserInfoRoot? rootTest = (TCUserInfoRoot?)serializer.Deserialize(reader, typeof(TCUserInfoRoot));
+                }
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         public static void TradeStatusUpdate(string id, bool cancelled = false)
