@@ -11,6 +11,9 @@ namespace SysBot.Pokemon
         [Category(FeatureToggle), Description("Enter Channel ID(s) where TradeCord should be active, or leave blank.")]
         public string TradeCordChannels { get; set; } = string.Empty;
 
+        [Category(FeatureToggle), Description("Choose whether to use full-size Home images from ProjectPokémon or downsized ones.")]
+        public bool UseFullSizeImages { get; set; } = true;
+
         [Category(FeatureToggle), Description("Enter the amount of time in seconds until a user can catch again.")]
         public int TradeCordCooldown { get; set; } = 60;
 
