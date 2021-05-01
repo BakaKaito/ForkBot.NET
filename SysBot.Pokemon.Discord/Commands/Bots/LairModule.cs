@@ -153,7 +153,7 @@ namespace SysBot.Pokemon.Discord
             {
                 if (LairBotUtil.EmbedMon.Item1 != null)
                 {
-                    var url = TradeExtensions.PokeImg(LairBotUtil.EmbedMon.Item1, LairBotUtil.EmbedMon.Item1.CanGigantamax, true);
+                    var url = TradeExtensions.PokeImg(LairBotUtil.EmbedMon.Item1, LairBotUtil.EmbedMon.Item1.CanGigantamax);
                     var ballUrl = $"https://serebii.net/itemdex/sprites/pgl/" + $"{(Ball)LairBotUtil.EmbedMon.Item1.Ball}ball".ToLower() + ".png";
                     var ping = SysCordInstance.Self.Hub.Config.StopConditions.PingOnMatch != string.Empty ? $"<@{SysCordInstance.Self.Hub.Config.StopConditions.PingOnMatch}>" : "";
                     var embed = new EmbedBuilder { Color = Color.Blue, ImageUrl = url, ThumbnailUrl = ballUrl }.AddField(x =>

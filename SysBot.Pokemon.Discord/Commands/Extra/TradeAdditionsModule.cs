@@ -23,7 +23,7 @@ namespace SysBot.Pokemon.Discord
         private string EggFooterID = string.Empty;
         private string EventPokeType = string.Empty;
         private string DexMsg = string.Empty;
-        private int EggIndex = -1;
+        
 
         [Command("giveawayqueue")]
         [Alias("gaq")]
@@ -514,7 +514,7 @@ namespace SysBot.Pokemon.Discord
             }
 
             bool canGmax = new ShowdownSet(ShowdownParsing.GetShowdownText(pkm)).CanGigantamax;
-            var pokeImg = TradeExtensions.PokeImg(pkm, canGmax, Hub.Config.TradeCord.UseFullSizeImages);
+            var pokeImg = TradeExtensions.PokeImg(pkm, canGmax);
             var embed = new EmbedBuilder { Color = pkm.IsShiny ? Color.Blue : Color.DarkBlue, ThumbnailUrl = pokeImg }.WithFooter(x => { x.Text = $"\n\n{TradeExtensions.DexFlavor(pkm.Species)}"; x.IconUrl = "https://i.imgur.com/nXNBrlr.png"; });
             var name = $"{Context.User.Username}'s {(match.Shiny ? "★" : "")}{match.Species}{match.Form} (ID: {match.ID})";
             var value = $"\n\n{ReusableActions.GetFormattedShowdownText(pkm)}";
