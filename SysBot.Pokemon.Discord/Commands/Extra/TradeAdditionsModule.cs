@@ -1440,7 +1440,7 @@ namespace SysBot.Pokemon.Discord
             failMsg += $"\n{DexMsg}";
             failMsg += $"\n{EggEmbedMsg}";
             var author = new EmbedAuthorBuilder { Name = $"{Context.User.Username}'s Catch"};
-            var footer = new EmbedFooterBuilder { Text = $"{(spookyRng >= 90 ? "But deep inside you know there is no escape..." : EggIndex != -1 ? $"Egg ID {EggIndex}" : "")}" };
+            var footer = new EmbedFooterBuilder { Text = $"{(spookyRng >= 90 ? $"But deep inside you know there is no escape... {(EggIndex != -1 ? $"Egg ID {EggIndex}" : "")}" : EggIndex != -1 ? $"Egg ID {EggIndex}" : "")}" };
             var embedFail = new EmbedBuilder
             {
                 Color = Color.Teal,
