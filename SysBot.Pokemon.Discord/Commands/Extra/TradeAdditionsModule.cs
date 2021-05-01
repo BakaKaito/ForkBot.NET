@@ -1462,7 +1462,7 @@ namespace SysBot.Pokemon.Discord
                 TCInfo.Dex.Add(TCRng.CatchPKM.Species);
             if (hatched)
                 TCInfo.Dex.Add(TCRng.EggPKM.Species);
-            DexMsg = caught || hatched ? " Registered to the Pokédex." : "";
+            DexMsg = caught || hatched ? "Registered to the Pokédex." : "";
             if (TCInfo.Dex.Count == 664 && TCInfo.DexCompletionCount < 5)
             {
                 TCInfo.Dex.Clear();
