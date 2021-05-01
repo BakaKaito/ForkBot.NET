@@ -20,6 +20,7 @@ namespace SysBot.Pokemon.Discord
         private TradeExtensions.TCUserInfoRoot.TCUserInfo TCInfo = new();
         private MysteryGift? MGRngEvent = default;
         private string EggEmbedMsg = string.Empty;
+        private string EggFooterID = string.Empty;
         private string EventPokeType = string.Empty;
         private string DexMsg = string.Empty;
 
@@ -1282,8 +1283,8 @@ namespace SysBot.Pokemon.Discord
             TCRng.EggPKM.ResetPartyStats();
             TCInfo.CatchCount++;
             TradeCordDump(TCInfo.UserID.ToString(), TCRng.EggPKM, out int indexEgg);
-            EggEmbedMsg = $"&^&You got " + $"{(TCRng.EggPKM.IsShiny ? "a **shiny egg**" : "an egg")}" +
-                        $" from the daycare! Welcome, {(TCRng.EggPKM.IsShiny ? "**" + eggSpeciesName + eggForm + $" [ID: {indexEgg}]**" : eggSpeciesName + eggForm + $" [ID: {indexEgg}]")}!";
+            EggFooterID = $" | Egg ID#: {indexEgg}";
+            EggEmbedMsg = $"&^&You found " + $"{(TCRng.EggPKM.IsShiny ? "a **Shiny " + eggSpeciesName + eggForm + " Egg!**\n" : "a " + eggSpeciesName + eggForm + " Egg!\n")}";
             if (TCInfo.DexCompletionCount < 5)
                 DexCount(true);
 
@@ -1370,10 +1371,11 @@ namespace SysBot.Pokemon.Discord
             var form = nidoranGender != string.Empty ? nidoranGender : TradeExtensions.FormOutput(TCRng.CatchPKM.Species, TCRng.CatchPKM.Form, out _);
             var pokeImg = TradeExtensions.PokeImg(TCRng.CatchPKM, TCRng.CatchPKM.CanGigantamax);
             var ballImg = $"https://serebii.net/itemdex/sprites/pgl/" + $"{(Ball)TCRng.CatchPKM.Ball}ball".ToLower() + ".png";
-            var author = new EmbedAuthorBuilder { IconUrl = ballImg, Name = $"{Context.User.Username}'s Catch [#{TCInfo.CatchCount}]" };
-            var embed = new EmbedBuilder { Color = (TCRng.CatchPKM.IsShiny && TCRng.CatchPKM.FatefulEncounter) || TCRng.CatchPKM.ShinyXor == 0 ? Color.Gold : TCRng.CatchPKM.ShinyXor <= 16 ? Color.LightOrange : Color.Teal, ImageUrl = pokeImg, Author = author, Description = $"You threw {(TCRng.CatchPKM.Ball == 2 ? "an" : "a")} {(Ball)TCRng.CatchPKM.Ball} Ball at a {(TCRng.CatchPKM.IsShiny ? "**shiny** wild **" + speciesName + form + "**" : "wild " + speciesName + form)}..." };
-            var catchName = "Results" + $"{(EggEmbedMsg != string.Empty ? "&^&\nEggs" : "")}";
-            var catchMsg = $"Success! It put up a fight, but you caught {(TCRng.CatchPKM.IsShiny ? "**" + speciesName + form + $" [ID: {index}]**" : speciesName + form + $" [ID: {index}]")}!";
+            var author = new EmbedAuthorBuilder { IconUrl = ballImg, Name = $"{Context.User.Username}'s Catch" };
+            var catchinfo = new EmbedFooterBuilder { Text = $"Catch {TCInfo.CatchCount} | Pokémon ID#: { index }" + $"{(EggEmbedMsg != string.Empty ? EggFooterID : "")}"};
+            var embed = new EmbedBuilder { Color = (TCRng.CatchPKM.IsShiny && TCRng.CatchPKM.FatefulEncounter) || TCRng.CatchPKM.ShinyXor == 0 ? Color.Gold : TCRng.CatchPKM.ShinyXor <= 16 ? Color.LightOrange : Color.Teal, ImageUrl = pokeImg, Author = author, Footer = catchinfo,  Description = $"You threw {(TCRng.CatchPKM.Ball == 2 ? "an" : "a")} {(Ball)TCRng.CatchPKM.Ball} Ball at a {(TCRng.CatchPKM.IsShiny ? "**shiny** wild **" + speciesName + form + "**" : "wild " + speciesName + form)}..."};
+            var catchName = "Results: Success!" + $"{(EggEmbedMsg != string.Empty ? "&^&\nDaycare" : "")}";
+            var catchMsg = $"You caught {(TCRng.CatchPKM.IsShiny ? "**a Shiny " + speciesName + form + "**" : speciesName + form)}! \n";
             if (TCInfo.DexCompletionCount < 5)
                 DexCount(EggEmbedMsg != "");
 
@@ -1389,11 +1391,13 @@ namespace SysBot.Pokemon.Discord
             var imgRng = TradeExtensions.Random.Next(1, 3);
             string imgGarf = "https://i.imgur.com/BOb6IbW.png";
             string imgConk = "https://i.imgur.com/oSUQhYv.png";
+            var imgesc = "https://i.imgur.com/GZcmNWQ.png";
             var ball = (Ball)TradeExtensions.Random.Next(2, 26);
-            var embedFail = new EmbedBuilder { Color = Color.Teal, ImageUrl = spookyRng >= 90 && imgRng == 1 ? imgGarf : spookyRng >= 90 && imgRng == 2 ? imgConk : "" };
-            var failName = $"{Context.User.Username}'s Catch" + "&^&Results" + $"{(EggEmbedMsg != string.Empty ? "&^&\nEggs" : "")}";
-            var failMsg = $"You threw {(ball == Ball.Ultra ? "an" : "a")} {(ball == Ball.Cherish ? Ball.Poke : ball)} Ball at a wild {(spookyRng >= 90 && imgRng != 3 ? "...whatever that thing is" : SpeciesName.GetSpeciesNameGeneration(TCRng.SpeciesRNG, 2, 8))}..." +
-                $"&^&{(spookyRng >= 90 && imgRng != 3 ? "One wiggle... Two... It breaks free and stares at you, smiling. You run for dear life." : "...but it managed to escape!")}";
+            var catchinfo = new EmbedFooterBuilder { Text = $"Better Luck Next Time." + $"{(EggEmbedMsg != string.Empty ? EggFooterID : "")}" };
+            var embedFail = new EmbedBuilder { Color = Color.Teal, Footer = catchinfo, ImageUrl = spookyRng >= 90 && imgRng == 1 ? imgGarf : spookyRng >= 90 && imgRng == 2 ? imgConk : imgesc};
+            var failName = $"{Context.User.Username}'s Catch" + "&^&Results: No Luck" + $"{(EggEmbedMsg != string.Empty ? "&^&\nEggs" : "")}";
+            var failMsg = $"You threw Poké Ball at a wild {(spookyRng >= 90 && imgRng != 3 ? "...whatever that thing is" : SpeciesName.GetSpeciesNameGeneration(TCRng.SpeciesRNG, 2, 8))}..." +
+                $"&^&{(spookyRng >= 90 && imgRng != 3 ? "One wiggle... Two... It breaks free and stares at you, smiling. You run for dear life." : "It managed to escape!")}";
             if (TCInfo.DexCompletionCount < 5)
                 DexCount(EggEmbedMsg != "");
 
@@ -1411,7 +1415,7 @@ namespace SysBot.Pokemon.Discord
                 TCInfo.Dex.Add(TCRng.CatchPKM.Species);
             if (hatched)
                 TCInfo.Dex.Add(TCRng.EggPKM.Species);
-            DexMsg = caught || hatched ? " Registered to the Pokédex." : "";
+            DexMsg = caught || hatched ? "Added to the Pokédex!" : "";
             if (TCInfo.Dex.Count == 664 && TCInfo.DexCompletionCount < 5)
             {
                 TCInfo.Dex.Clear();

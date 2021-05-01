@@ -364,7 +364,7 @@ namespace SysBot.Pokemon
 
             pk.IsEgg = true;
             pk.Egg_Location = 60002;
-            pk.MetDate = DateTime.Parse("2020/10/20");
+            pk.MetDate = DateTime.Today;
             pk.EggMetDate = pk.MetDate;
             pk.HeldItem = 0;
             pk.CurrentLevel = 1;
@@ -474,7 +474,7 @@ namespace SysBot.Pokemon
             pkm.Nickname = "KOIKOIKOIKOI";
             pkm.IsNicknamed = true;
             if (pkm.Version != (int)GameVersion.GO && !pkm.FatefulEncounter)
-                pkm.MetDate = DateTime.Parse("2020/10/20");
+                pkm.MetDate = DateTime.Today;
             pkm.SetDefaultNickname(la ?? new LegalityAnalysis(pkm));
             return pkm;
         }
