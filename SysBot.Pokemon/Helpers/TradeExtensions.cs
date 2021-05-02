@@ -34,7 +34,7 @@ namespace SysBot.Pokemon
                                           (int)Species.Zarude, (int)Species.Glastrier, (int)Species.Spectrier, (int)Species.Calyrex };
 
         public static int[] PikaClones = { 25, 26, 172, 587, 702, 777, 877 };
-        public static int[] CherishOnly = { 251, 385, 494, 649, 719, 721, 801, 802, 807, 893 };
+        public static int[] CherishOnly = { 719, 721, 801, 802, 807, 893 };
         public static int[] Pokeball = { 151, 722, 723, 724, 725, 726, 727, 728, 729, 730, 772, 773, 789, 790, 810, 811, 812, 813, 814, 815, 816, 817, 818, 891, 892 };
         public static int[] GalarFossils = { 880, 881, 882, 883 };
         public static int[] SilvallyMemory = { 0, 904, 905, 906, 907, 908, 909, 910, 911, 912, 913, 914, 915, 916, 917, 918, 919, 920 };
@@ -210,7 +210,8 @@ namespace SysBot.Pokemon
             }
 
             bool goMew = pkm.Species == (int)Species.Mew && enc.Version == GameVersion.GO && pkm.IsShiny;
-            pkm.IVs = goMew || pkm.FatefulEncounter ? pkm.IVs : enc.Version == GameVersion.GO ? pkm.SetRandomIVsGO() : enc is EncounterStatic8N && enc.LevelMin >= 35 ? pkm.SetRandomIVs(5) : enc is EncounterSlot8 || enc is EncounterStatic8U || enc is EncounterStatic8 ? pkm.SetRandomIVs(4) : pkm.SetRandomIVs(3);
+            bool goOther = (pkm.Species == (int)Species.Victini || pkm.Species == (int)Species.Jirachi || pkm.Species == (int)Species.Celebi || pkm.Species == (int)Species.Genesect) && enc.Version == GameVersion.GO;
+            pkm.IVs = goOther || goMew || pkm.FatefulEncounter ? pkm.IVs : enc.Version == GameVersion.GO ? pkm.SetRandomIVsGO() : enc is EncounterStatic8N && enc.LevelMin >= 35 ? pkm.SetRandomIVs(5) : enc is EncounterSlot8 || enc is EncounterStatic8U || enc is EncounterStatic8 ? pkm.SetRandomIVs(4) : pkm.SetRandomIVs(3);
             if (enc is EncounterStatic8)
             {
                 var criteria = EncounterCriteria.GetCriteria(template);
@@ -416,7 +417,7 @@ namespace SysBot.Pokemon
             formString = FormConverter.GetFormList(species, strings.Types, strings.forms, GameInfo.GenderSymbolASCII, 8);
             _ = formString.Length == form && form != 0 ? form -= 1 : form;
 
-            if (formString[form] == "Normal" || formString[form].Contains("-") && species != (int)Species.Zygarde || formString[form] == "")
+            if (form == 0)
                 return "";
             else return "-" + formString[form];
         }

@@ -532,7 +532,7 @@ namespace SysBot.Pokemon.Discord
                 TradeExtensions.UpdateUserInfo(TCInfo);
                 var embed = new EmbedBuilder { Color = Color.DarkBlue };
                 var name = $"{Context.User.Username}'s Mass Release";
-                var value = species == "" ? "Every non-shiny Pokémon was released, excluding Ditto, favorites, events, and those in daycare." : $"Every {(species.ToLower() == "shiny" ? "shiny Pokémon" : ballStr == "Cherish" ? "event Pokémon" : $"non-shiny {species}")} was released, excluding favorites{(ballStr == "Cherish" ? "" : ", events,")} and those in daycare.";
+                var value = species == "" ? "Every non-shiny Pokémon was released, excluding Ditto, favorites, events, and those in daycare." : $"Every {(species.ToLower() == "shiny" ? "shiny Pokémon" : ballStr == "Cherish" ? "non-shiny event Pokémon" : $"non-shiny {species}")} was released, excluding favorites{(ballStr == "Cherish" ? "" : ", events,")} and those in daycare.";
                 await EmbedUtil(embed, name, value).ConfigureAwait(false);
                 return true;
             }
@@ -773,12 +773,11 @@ namespace SysBot.Pokemon.Discord
                 File.Move(match.Path, newPath);
                 receivingUser.Catches.Add(new() { Ball = match.Ball, Egg = match.Egg, Form = match.Form, ID = newID, Shiny = match.Shiny, Species = match.Species, Path = newPath, Traded = false });
                 var specID = SpeciesName.GetSpeciesID(match.Species);
-                string dexEntry = "";
-                if (receivingUser.DexCompletionCount < 10 && !receivingUser.Dex.Contains(specID))
-                {
-                    receivingUser.Dex.Add(specID);
-                    dexEntry = $"\n{Context.Message.MentionedUsers.First().Username} registered a new entry to the Pokédex!";
-                }
+                var dex = (int[])Enum.GetValues(typeof(Gen8Dex));
+                var missingEntries = GetMissingDexEntries(dex, receivingUser).Count;
+
+                if (receivingUser.DexCompletionCount == 0 || (receivingUser.DexCompletionCount < 30 && missingEntries <= 50))
+                    DexCount(receivingUser, false, true, specID);
 
                 TradeExtensions.UpdateUserInfo(receivingUser, false, true);
                 TCInfo.Catches.Remove(match);
@@ -786,7 +785,7 @@ namespace SysBot.Pokemon.Discord
 
                 var embed = new EmbedBuilder { Color = Color.Purple };
                 var name = $"{Context.User.Username}'s Gift";
-                var value = $"You gifted your {(match.Shiny ? "★" : "")}{match.Species}{match.Form} to {Context.Message.MentionedUsers.First().Username}. New ID is {newID}.{dexEntry}";
+                var value = $"You gifted your {(match.Shiny ? "★" : "")}{match.Species}{match.Form} to {Context.Message.MentionedUsers.First().Username}. New ID is {newID}.{DexMsg}";
                 await EmbedUtil(embed, name, value).ConfigureAwait(false);
                 return true;
             }
@@ -948,20 +947,14 @@ namespace SysBot.Pokemon.Discord
             if (TCInfo.DexCompletionCount >= 1)
                 embed.WithFooter(new EmbedFooterBuilder { Text = $"You have {TCInfo.DexCompletionCount} unused {(TCInfo.DexCompletionCount == 1 ? "perk" : "perks")}!\nType \"{Info.Hub.Config.Discord.CommandPrefix}perks\" to view available perk names!" });
 
-            var enumVals = (int[])Enum.GetValues(typeof(Gen8Dex));
+            var entries = (int[])Enum.GetValues(typeof(Gen8Dex));
             var name = $"{Context.User.Username}'s {(input.ToLower() == "missing" ? "Missing Entries" : "Dex Info")}";
             var speciesBoost = TCInfo.SpeciesBoost != 0 ? $"\n**Pokémon Boost:** {SpeciesName.GetSpeciesNameGeneration(TCInfo.SpeciesBoost, 2, 8)}" : "\n**Pokémon Boost:** N/A";
-            var value = $"\n**Pokédex:** {TCInfo.Dex.Count}/{enumVals.Length}\n**Level:** {TCInfo.DexCompletionCount + TCInfo.ActivePerks.Count}{speciesBoost}";
+            var value = $"\n**Pokédex:** {TCInfo.Dex.Count}/{entries.Length}\n**Level:** {TCInfo.DexCompletionCount + TCInfo.ActivePerks.Count}{speciesBoost}";
 
             if (input.ToLower() == "missing")
             {
-                List<string> missing = new();
-                foreach (var entry in enumVals)
-                {
-                    if (!TCInfo.Dex.Contains(entry))
-                        missing.Add(SpeciesName.GetSpeciesNameGeneration(entry, 2, 8));
-                }
-
+                List<string> missing = GetMissingDexEntries(entries, TCInfo);
                 value = string.Join(", ", missing.OrderBy(x => x));
                 await ListUtil(name, value).ConfigureAwait(false);
                 return;
@@ -1410,7 +1403,7 @@ namespace SysBot.Pokemon.Discord
                 (int)Species.Meltan or (int)Species.Melmetal => $"\nBall: {TradeExtensions.LGPEBalls[TradeExtensions.Random.Next(TradeExtensions.LGPEBalls.Length)]}",
                 (int)Species.Dracovish or (int)Species.Dracozolt or (int)Species.Arctovish or (int)Species.Arctozolt => _ = formEdgeCaseRng < 5 ? $"\nBall: Poke" : $"\nBall: {(Ball)TradeExtensions.Random.Next(1, 26)}",
                 (int)Species.Treecko or (int)Species.Torchic or (int)Species.Mudkip => $"\nBall: {(Ball)TradeExtensions.Random.Next(2, 27)}",
-                (int)Species.Pikachu => "\nBall: Poke",
+                (int)Species.Pikachu or (int)Species.Victini or (int)Species.Celebi or (int)Species.Jirachi or (int)Species.Genesect => "\nBall: Poke",
                 _ => TradeExtensions.Pokeball.Contains(TCRng.SpeciesRNG) ? "\nBall: Poke" : $"\nBall: {(Ball)TradeExtensions.Random.Next(1, 27)}",
             };
 
@@ -1453,7 +1446,7 @@ namespace SysBot.Pokemon.Discord
             EggIndex = indexEgg;
             EggEmbedMsg = $"&^&You got {(TCRng.EggPKM.IsShiny ? "a **shiny egg**" : "an egg")} from the daycare! Welcome, {(TCRng.EggPKM.IsShiny ? $"**{finalEggName}**" : $"{finalEggName}")}!";
             if (TCInfo.DexCompletionCount < 30)
-                DexCount(true);
+                DexCount(TCInfo, true);
 
             EggEmbedMsg += $"\n{DexMsg}";
             return true;
@@ -1544,7 +1537,7 @@ namespace SysBot.Pokemon.Discord
             var catchName = $"Results{(EggEmbedMsg != string.Empty ? "&^&\nEggs" : "")}";
             var catchMsg = $"It put up a fight, but you caught {(TCRng.CatchPKM.IsShiny ? $"**{finalName}**" : $"{finalName}")}!";
             if (TCInfo.DexCompletionCount < 30)
-                DexCount(EggEmbedMsg != "");
+                DexCount(TCInfo, EggEmbedMsg != "");
 
             catchMsg += $"\n{DexMsg}";
             catchMsg += $"\n{EggEmbedMsg}";
@@ -1580,7 +1573,7 @@ namespace SysBot.Pokemon.Discord
             var failName = $"Results{(EggEmbedMsg != string.Empty ? "&^&\nEggs" : "")}";
             var failMsg =  $"{(spookyRng >= 90 ? "One wiggle... Two... It breaks free and stares at you, smiling. You run for dear life." : "...but it managed to escape!")}";
             if (TCInfo.DexCompletionCount < 30)
-                DexCount(EggEmbedMsg != "");
+                DexCount(TCInfo, EggEmbedMsg != "");
 
             failMsg += $"\n{DexMsg}";
             failMsg += $"\n{EggEmbedMsg}";
@@ -1599,20 +1592,24 @@ namespace SysBot.Pokemon.Discord
             await EmbedUtil(embedFail, failName, failMsg).ConfigureAwait(false);
         }
 
-        private void DexCount(bool egg)
+        private void DexCount(TradeExtensions.TCUserInfoRoot.TCUserInfo info, bool egg, bool gift = false, int giftSpecies = -1)
         {
-            bool caught = TCRng.CatchRNG >= 100 - Info.Hub.Config.TradeCord.CatchRate && !TCInfo.Dex.Contains(TCRng.CatchPKM.Species) && TCRng.CatchPKM.Species != 0;
-            bool hatched = egg && !TCInfo.Dex.Contains(TCRng.EggPKM.Species) && TCRng.EggPKM.Species != 0 && TCRng.EggPKM.Species != TCRng.CatchPKM.Species;
+            bool caught = TCRng.CatchRNG >= 100 - Info.Hub.Config.TradeCord.CatchRate && !info.Dex.Contains(TCRng.CatchPKM.Species) && TCRng.CatchPKM.Species != 0 && !gift;
+            bool hatched = egg && !info.Dex.Contains(TCRng.EggPKM.Species) && TCRng.EggPKM.Species != 0 && TCRng.EggPKM.Species != TCRng.CatchPKM.Species && !gift;
+            gift = !info.Dex.Contains(giftSpecies) && giftSpecies > 0 && gift;
             if (caught)
-                TCInfo.Dex.Add(TCRng.CatchPKM.Species);
+                info.Dex.Add(TCRng.CatchPKM.Species);
             if (hatched)
-                TCInfo.Dex.Add(TCRng.EggPKM.Species);
-            DexMsg = caught || hatched ? "Registered to the Pokédex." : "";
-            if (TCInfo.Dex.Count >= 664 && TCInfo.DexCompletionCount < 30)
+                info.Dex.Add(TCRng.EggPKM.Species);
+            if (gift)
+                info.Dex.Add(giftSpecies);
+
+            DexMsg = caught || hatched ? "Registered to the Pokédex." : gift ? $"\n{Context.Message.MentionedUsers.First().Username} registered a new entry to the Pokédex!" : "";
+            if (info.Dex.Count >= 664 && info.DexCompletionCount < 30)
             {
-                TCInfo.Dex.Clear();
-                TCInfo.DexCompletionCount += 1;
-                DexMsg += TCInfo.DexCompletionCount < 30 ? "Level increased!" : "Highest level achieved!";
+                info.Dex.Clear();
+                info.DexCompletionCount += 1;
+                DexMsg += info.DexCompletionCount < 30 ? "Level increased!" : "Highest level achieved!";
             }
         }
 
@@ -1644,6 +1641,17 @@ namespace SysBot.Pokemon.Discord
                 return true;
             }
             return false;
+        }
+
+        private List<string> GetMissingDexEntries(int[] entries, TradeExtensions.TCUserInfoRoot.TCUserInfo info)
+        {
+            List<string> missing = new();
+            foreach (var entry in entries)
+            {
+                if (!info.Dex.Contains(entry))
+                    missing.Add(SpeciesName.GetSpeciesNameGeneration(entry, 2, 8));
+            }
+            return missing;
         }
 
         private PK8 TradeCordPK(int species) => (PK8)AutoLegalityWrapper.GetTrainerInfo(8).GetLegal(AutoLegalityWrapper.GetTemplate(new ShowdownSet(SpeciesName.GetSpeciesNameGeneration(species, 2, 8))), out _);
