@@ -500,8 +500,10 @@ namespace SysBot.Pokemon.Discord
 
                 IEnumerable<TradeExtensions.TCUserInfoRoot.Catch> matches;
                 var list = TCInfo.Catches.ToList();
-                bool ballRelease = Enum.TryParse(species.Substring(0, 1).ToUpper() + species.Substring(1).ToLower(), out Ball ball);
-                if (ballRelease)
+                var ballStr = species != "" ? species.Substring(0, 1).ToUpper() + species.Substring(1).ToLower() : "None";
+                bool ballRelease = Enum.TryParse(ballStr, out Ball ball);
+
+                if (ballRelease && ball != Ball.None)
                     matches = list.FindAll(x => !x.Traded && !x.Shiny && x.Ball == ball.ToString() && x.Species != "Ditto" && x.ID != TCInfo.Daycare1.ID && x.ID != TCInfo.Daycare2.ID && TCInfo.Favorites.FirstOrDefault(z => z == x.ID) == default);
                 else if (species.ToLower() == "shiny")
                     matches = list.FindAll(x => !x.Traded && x.Shiny && x.Ball != "Cherish" && x.Species != "Ditto" && x.ID != TCInfo.Daycare1.ID && x.ID != TCInfo.Daycare2.ID && TCInfo.Favorites.FirstOrDefault(z => z == x.ID) == default);
@@ -524,13 +526,13 @@ namespace SysBot.Pokemon.Discord
                     TCInfo.Catches.Remove(val);
                 }
 
-                if (ballRelease)
+                if (ballRelease && ball != Ball.None)
                     species = $"Pokémon in {ball} Ball";
 
                 await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
                 var embed = new EmbedBuilder { Color = Color.DarkBlue };
                 var name = $"{Context.User.Username}'s Mass Release";
-                var value = species == "" ? "Every non-shiny Pokémon was released, excluding Ditto, favorites, events, and those in daycare." : $"Every {(species.ToLower() == "shiny" ? "shiny Pokémon" : species.ToLower() == "cherish" ? "event Pokémon" : $"non-shiny {species}")} was released, excluding favorites{(species.ToLower() == "cherish" ? "" : ", events,")} and those in daycare.";
+                var value = species == "" ? "Every non-shiny Pokémon was released, excluding Ditto, favorites, events, and those in daycare." : $"Every {(species.ToLower() == "shiny" ? "shiny Pokémon" : ballStr == "Cherish" ? "event Pokémon" : $"non-shiny {species}")} was released, excluding favorites{(ballStr == "Cherish" ? "" : ", events,")} and those in daycare.";
                 await EmbedUtil(embed, name, value).ConfigureAwait(false);
                 return true;
             }
@@ -1603,11 +1605,11 @@ namespace SysBot.Pokemon.Discord
             if (hatched)
                 TCInfo.Dex.Add(TCRng.EggPKM.Species);
             DexMsg = caught || hatched ? "Registered to the Pokédex." : "";
-            if (TCInfo.Dex.Count == 664 && TCInfo.DexCompletionCount < 30)
+            if (TCInfo.Dex.Count >= 664 && TCInfo.DexCompletionCount < 30)
             {
                 TCInfo.Dex.Clear();
                 TCInfo.DexCompletionCount += 1;
-                DexMsg += TCInfo.DexCompletionCount < 30 ? " Level increased!" : " Highest level achieved!";
+                DexMsg += TCInfo.DexCompletionCount < 30 ? "Level increased!" : "Highest level achieved!";
             }
         }
 
