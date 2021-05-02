@@ -249,12 +249,13 @@ namespace SysBot.Pokemon.Discord
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
         public async Task TradeCord()
         {
-            var user = Context.User.Id.ToString();
             async Task<bool> FuncCatch()
             {
                 if (!await TradeCordParanoiaChecks(Context).ConfigureAwait(false) || !SettingsCheck())
                     return false;
-                else if (!TradeCordCanCatch(user, out TimeSpan timeRemaining))
+
+                var userID = TCInfo.UserID.ToString();
+                if (!TradeCordCanCatch(userID, out TimeSpan timeRemaining))
                 {
                     var embedTime = new EmbedBuilder { Color = Color.DarkBlue };
                     var timeName = $"{Context.User.Username}, you're too quick!";
@@ -264,7 +265,7 @@ namespace SysBot.Pokemon.Discord
                 }
 
                 PerkBoostApplicator();
-                TradeCordCooldown(user);
+                TradeCordCooldown(userID);
                 DateTime.TryParse(Info.Hub.Config.TradeCord.EventEnd, out DateTime endTime);
                 bool ended = endTime != default && DateTime.Now > endTime;
                 bool boostProc = TCInfo.SpeciesBoost != 0 && TCRng.SpeciesBoostRNG >= 100 - TCInfo.ActivePerks.FindAll(x => x == DexPerks.SpeciesBoost).Count;
@@ -1127,14 +1128,14 @@ namespace SysBot.Pokemon.Discord
             {
                 var line = TradeExtensions.TradeCordCooldown.FirstOrDefault(z => z.Contains(id));
                 if (line != default)
-                    TradeExtensions.TradeCordCooldown.Remove(TradeExtensions.TradeCordCooldown.FirstOrDefault(z => z.Contains(id)));
+                    TradeExtensions.TradeCordCooldown.RemoveWhere(x => x.Contains(id));
                 TradeExtensions.TradeCordCooldown.Add($"{id},{DateTime.Now}");
             }
         }
 
-        private bool TradeCordCanCatch(string user, out TimeSpan timeRemaining)
+        private bool TradeCordCanCatch(string userID, out TimeSpan timeRemaining)
         {
-            var line = TradeExtensions.TradeCordCooldown.FirstOrDefault(z => z.Contains(user));
+            var line = TradeExtensions.TradeCordCooldown.FirstOrDefault(z => z.Contains(userID));
             DateTime.TryParse(line != default ? line.Split(',')[1] : "", out DateTime time);
             var timer = time.AddSeconds(Info.Hub.Config.TradeCord.TradeCordCooldown);
             timeRemaining = timer - DateTime.Now;

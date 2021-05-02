@@ -20,7 +20,7 @@ namespace SysBot.Pokemon
         public static readonly List<ulong> CommandInProgress = new();
         private static readonly List<ulong> GiftInProgress = new();
         public static List<string> TradeCordPath = new();
-        public static List<string> TradeCordCooldown = new();
+        public static HashSet<string> TradeCordCooldown = new();
         private static readonly string InfoPath = "TradeCord\\UserInfo.json";
         public static TCUserInfoRoot UserInfo = GetRoot<TCUserInfoRoot>(InfoPath);
         public static int XCoordStart = 0;
