@@ -549,11 +549,8 @@ namespace SysBot.Pokemon
             return user;
         }
 
-        public static async Task UpdateUserInfo(TCUserInfoRoot.TCUserInfo info, bool remove = true, bool gift = false)
+        public static void UpdateUserInfo(TCUserInfoRoot.TCUserInfo info, bool remove = true, bool gift = false)
         {
-            while (TCRWLockEnable)
-                await Task.Delay(0_100).ConfigureAwait(false);
-
             UserInfo.Users.RemoveWhere(x => x.UserID == info.UserID);
             UserInfo.Users.Add(info);
             if (remove)

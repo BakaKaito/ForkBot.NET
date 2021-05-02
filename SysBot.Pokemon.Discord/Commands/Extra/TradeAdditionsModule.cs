@@ -309,7 +309,7 @@ namespace SysBot.Pokemon.Discord
                 else await FailedCatchHandler().ConfigureAwait(false);
 
                 if (egg || TCRng.CatchRNG >= 100 - Info.Hub.Config.TradeCord.CatchRate)
-                    await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
+                    TradeExtensions.UpdateUserInfo(TCInfo);
                 return true;
             }
 
@@ -364,7 +364,7 @@ namespace SysBot.Pokemon.Discord
 
                 match.Traded = true;
                 TradeExtensions.TradeCordPath.Add(match.Path);
-                await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
+                TradeExtensions.UpdateUserInfo(TCInfo);
                 var sig = Context.User.GetFavor();
                 await Context.AddToQueueAsync(code, Context.User.Username, sig, (PK8)pkm, PokeRoutineType.TradeCord, PokeTradeType.TradeCord).ConfigureAwait(false);
                 return true;
@@ -529,7 +529,7 @@ namespace SysBot.Pokemon.Discord
                 if (ballRelease && ball != Ball.None)
                     species = $"Pokémon in {ball} Ball";
 
-                await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
+                TradeExtensions.UpdateUserInfo(TCInfo);
                 var embed = new EmbedBuilder { Color = Color.DarkBlue };
                 var name = $"{Context.User.Username}'s Mass Release";
                 var value = species == "" ? "Every non-shiny Pokémon was released, excluding Ditto, favorites, events, and those in daycare." : $"Every {(species.ToLower() == "shiny" ? "shiny Pokémon" : ballStr == "Cherish" ? "event Pokémon" : $"non-shiny {species}")} was released, excluding favorites{(ballStr == "Cherish" ? "" : ", events,")} and those in daycare.";
@@ -576,7 +576,7 @@ namespace SysBot.Pokemon.Discord
                 var value = $"You release your {(match.Shiny ? "★" : "")}{match.Species}{match.Form}.";
                 File.Delete(match.Path);
                 TCInfo.Catches.Remove(match);
-                await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
+                TradeExtensions.UpdateUserInfo(TCInfo);
                 await EmbedUtil(embed, name, value).ConfigureAwait(false);
                 return true;
             }
@@ -706,7 +706,7 @@ namespace SysBot.Pokemon.Discord
                     return false;
                 }
 
-                await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
+                TradeExtensions.UpdateUserInfo(TCInfo);
                 var embed = new EmbedBuilder { Color = Color.DarkBlue };
                 var name = $"{Context.User.Username}'s Daycare {(deposit ? "Deposit" : "Withdraw")}";
                 var results = deposit && match != null ? $"Deposited your {(match.Shiny ? "★" : "")}{match.Species}{match.Form}({match.Ball}) to daycare!" : $"You withdrew your {speciesString} from the daycare.";
@@ -780,9 +780,9 @@ namespace SysBot.Pokemon.Discord
                     dexEntry = $"\n{Context.Message.MentionedUsers.First().Username} registered a new entry to the Pokédex!";
                 }
 
-                await TradeExtensions.UpdateUserInfo(receivingUser, false, true).ConfigureAwait(false);
+                TradeExtensions.UpdateUserInfo(receivingUser, false, true);
                 TCInfo.Catches.Remove(match);
-                await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
+                TradeExtensions.UpdateUserInfo(TCInfo);
 
                 var embed = new EmbedBuilder { Color = Color.Purple };
                 var name = $"{Context.User.Username}'s Gift";
@@ -834,7 +834,7 @@ namespace SysBot.Pokemon.Discord
                 TCInfo.SID = pkm.DisplaySID;
                 TCInfo.Language = $"{(LanguageID)pkm.Language}";
 
-                await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
+                TradeExtensions.UpdateUserInfo(TCInfo);
                 var embed = new EmbedBuilder { Color = Color.DarkBlue };
                 var name = $"{Context.User.Username}'s Trainer Info";
                 var value = $"\nYour trainer info was set to the following: \n**OT:** {TCInfo.OTName}\n**OTGender:** {TCInfo.OTGender}\n**TID:** {TCInfo.TID}\n**SID:** {TCInfo.SID}\n**Language:** {TCInfo.Language}";
@@ -927,7 +927,7 @@ namespace SysBot.Pokemon.Discord
                     TCInfo.Favorites.Remove(fav);
                     await Context.Message.Channel.SendMessageAsync($"{Context.User.Username}, removed your {(match.Shiny ? "★" : "")}{match.Species}{match.Form} from favorites!").ConfigureAwait(false);
                 }
-                await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
+                TradeExtensions.UpdateUserInfo(TCInfo);
                 return true;
             }
 
@@ -977,7 +977,7 @@ namespace SysBot.Pokemon.Discord
         {
             async Task<bool> FuncDexPerks()
             {
-                if (!await TradeCordParanoiaChecks(Context).ConfigureAwait(false))
+                if (!await TradeCordParanoiaChecks(Context, input != "").ConfigureAwait(false))
                     return false;
 
                 if (input == "" && (TCInfo.DexCompletionCount > 0 || TCInfo.ActivePerks.Count > 0))
@@ -1002,7 +1002,7 @@ namespace SysBot.Pokemon.Discord
                     TCInfo.DexCompletionCount += TCInfo.ActivePerks.Count;
                     TCInfo.ActivePerks = new();
                     TCInfo.SpeciesBoost = 0;
-                    await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
+                    TradeExtensions.UpdateUserInfo(TCInfo);
                     await Context.Message.Channel.SendMessageAsync($"{Context.User.Username}, all active perks cleared!").ConfigureAwait(false);
                     return true;
                 }
@@ -1058,7 +1058,7 @@ namespace SysBot.Pokemon.Discord
                     TCInfo.DexCompletionCount -= 1;
                 }
 
-                await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
+                TradeExtensions.UpdateUserInfo(TCInfo);
                 await Context.Message.Channel.SendMessageAsync($"{Context.User.Username}, {(perkList.Count > 1 ? "added all requested perks!" : "requested perk added!")}").ConfigureAwait(false);
                 return true;
             }
@@ -1092,7 +1092,7 @@ namespace SysBot.Pokemon.Discord
                 }
 
                 TCInfo.SpeciesBoost = (int)species;
-                await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
+                TradeExtensions.UpdateUserInfo(TCInfo);
                 await Context.Message.Channel.SendMessageAsync($"{Context.User.Username}, catch chance for {species} was slightly boosted!").ConfigureAwait(false);
                 return true;
             }
@@ -1177,7 +1177,7 @@ namespace SysBot.Pokemon.Discord
                         TCInfo.Catches.Remove(trade);
                     else trade.Traded = false;
                 }
-                await TradeExtensions.UpdateUserInfo(TCInfo, false).ConfigureAwait(false);
+                TradeExtensions.UpdateUserInfo(TCInfo, false);
             }
 
             if (!update)
@@ -1383,13 +1383,16 @@ namespace SysBot.Pokemon.Discord
                 _ => "",
             };
 
+            if (TCRng.SpeciesRNG == (int)Species.NidoranF || TCRng.SpeciesRNG == (int)Species.NidoranM)
+                speciesName = speciesName.Remove(speciesName.Length - 1);
+
             if (!ignoreForm.Contains(TCRng.SpeciesRNG))
             {
                 TradeExtensions.FormOutput(TCRng.SpeciesRNG, 0, out string[] forms);
                 formHack = TCRng.SpeciesRNG switch
                 {
                     (int)Species.Meowstic or (int)Species.Indeedee => _ = formEdgeCaseRng < 5 ? "-M" : "-F",
-                    (int)Species.NidoranF or (int)Species.NidoranM => _ = TCRng.SpeciesRNG == (int)Species.NidoranF ? "-F" : "-M",
+                    (int)Species.NidoranF or (int)Species.NidoranM => _ = TCRng.SpeciesRNG == (int)Species.NidoranF ? "-F (F)" : "-M (M)",
                     (int)Species.Sinistea or (int)Species.Polteageist => _ = formEdgeCaseRng < 5 ? "" : "-Antique",
                     (int)Species.Pikachu => _ = formEdgeCaseRng < 5 ? "" : TradeExtensions.PartnerPikachuHeadache[TradeExtensions.Random.Next(TradeExtensions.PartnerPikachuHeadache.Length)],
                     (int)Species.Dracovish or (int)Species.Dracozolt => _ = formEdgeCaseRng < 5 ? "" : "\nAbility: Sand Rush",
