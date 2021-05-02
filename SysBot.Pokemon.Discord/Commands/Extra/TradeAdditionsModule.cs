@@ -263,18 +263,16 @@ namespace SysBot.Pokemon.Discord
                     return false;
                 }
 
+                PerkBoostApplicator();
                 TradeCordCooldown(user);
-                TCRng.ShinyRNG += TCInfo.DexCompletionCount * 2;
-                TCRng.EggShinyRNG += TCInfo.DexCompletionCount * 2;
                 DateTime.TryParse(Info.Hub.Config.TradeCord.EventEnd, out DateTime endTime);
                 bool ended = endTime != default && DateTime.Now > endTime;
+                bool boostProc = TCInfo.SpeciesBoost != 0 && TCRng.SpeciesBoostRNG >= 100 - TCInfo.ActivePerks.FindAll(x => x == DexPerks.SpeciesBoost).Count;
+                var enumVals = (int[])Enum.GetValues(typeof(Gen8Dex));
+
                 if (Info.Hub.Config.TradeCord.EnableEvent && !ended)
                     EventHandler();
-                else
-                {
-                    while (TCRng.SpeciesRNG == 0)
-                        TCRng.SpeciesRNG = SpeciesRand(TradeCordPK(TradeExtensions.Random.Next(1, 899), out string res), res);
-                }
+                else TCRng.SpeciesRNG = boostProc ? TCInfo.SpeciesBoost : enumVals[TradeExtensions.Random.Next(enumVals.Length)];
 
                 List<string> trainerInfo = new();
                 trainerInfo.AddRange(new string[] { TCInfo.OTName == "" ? "" : $"OT: {TCInfo.OTName}", TCInfo.OTGender == "" ? "" : $"OTGender: {TCInfo.OTGender}", TCInfo.TID == 0 ? "" : $"TID: {TCInfo.TID}",
@@ -291,7 +289,7 @@ namespace SysBot.Pokemon.Discord
                     var speciesName = SpeciesName.GetSpeciesNameGeneration(TCRng.SpeciesRNG, 2, 8);
                     var mgRng = MGRngEvent == default ? MysteryGiftRng() : MGRngEvent;
                     bool melmetalHack = TCRng.SpeciesRNG == (int)Species.Melmetal && TCRng.GmaxRNG >= 100 - Info.Hub.Config.TradeCord.GmaxRate;
-                    if ((TradeExtensions.CherishOnly.Contains(TCRng.SpeciesRNG) || TCRng.CherishRng >= 100 - Info.Hub.Config.TradeCord.CherishRate || MGRngEvent != default || melmetalHack) && mgRng != default)
+                    if ((TradeExtensions.CherishOnly.Contains(TCRng.SpeciesRNG) || TCRng.CherishRNG >= 100 - Info.Hub.Config.TradeCord.CherishRate || MGRngEvent != default || melmetalHack) && mgRng != default)
                     {
                         Enum.TryParse(TCInfo.OTGender, out Gender gender);
                         Enum.TryParse(TCInfo.Language, out LanguageID language);
@@ -417,9 +415,9 @@ namespace SysBot.Pokemon.Discord
             bool shiny = filters.FirstOrDefault(x => x == "shiny") != default;
             IEnumerable<TradeExtensions.TCUserInfoRoot.Catch> matches = filters.Count switch
             {
-                1 => catches.FindAll(x => (name == "All" ? x.Species != "" : name == "Legendaries" ? TradeExtensions.Legends.Contains(SpeciesName.GetSpeciesID(x.Species)) : name == "Egg" ? x.Egg : name == "Shinies" ? x.Shiny : (x.Species == name || (x.Species + x.Form == name) || x.Form.Replace("-", "") == name)) && (ball != default ? ball == x.Ball.ToLower() : x.Shiny) && !x.Traded),
-                2 => catches.FindAll(x => (name == "All" ? x.Species != "" : name == "Legendaries" ? TradeExtensions.Legends.Contains(SpeciesName.GetSpeciesID(x.Species)) : name == "Egg" ? x.Egg : x.Species == name || (x.Species + x.Form == name) || x.Form.Replace("-", "") == name) && x.Shiny && ball == x.Ball.ToLower() && !x.Traded),
-                _ => catches.FindAll(x => (name == "All" ? x.Species != "" : name == "Legendaries" ? TradeExtensions.Legends.Contains(SpeciesName.GetSpeciesID(x.Species)) : name == "Egg" ? x.Egg : name == "Shinies" ? x.Shiny : x.Ball == name || x.Species == name || (x.Species + x.Form == name) || x.Form.Replace("-", "") == name) && !x.Traded),
+                1 => catches.FindAll(x => (name == "All" ? x.Species != "" : name == "Legendaries" ? Enum.IsDefined(typeof(Legends), SpeciesName.GetSpeciesID(x.Species)) : name == "Egg" ? x.Egg : name == "Shinies" ? x.Shiny : (x.Species == name || (x.Species + x.Form == name) || x.Form.Replace("-", "") == name)) && (ball != default ? ball == x.Ball.ToLower() : x.Shiny) && !x.Traded),
+                2 => catches.FindAll(x => (name == "All" ? x.Species != "" : name == "Legendaries" ? Enum.IsDefined(typeof(Legends), SpeciesName.GetSpeciesID(x.Species)) : name == "Egg" ? x.Egg : x.Species == name || (x.Species + x.Form == name) || x.Form.Replace("-", "") == name) && x.Shiny && ball == x.Ball.ToLower() && !x.Traded),
+                _ => catches.FindAll(x => (name == "All" ? x.Species != "" : name == "Legendaries" ? Enum.IsDefined(typeof(Legends), SpeciesName.GetSpeciesID(x.Species)) : name == "Egg" ? x.Egg : name == "Shinies" ? x.Shiny : x.Ball == name || x.Species == name || (x.Species + x.Form == name) || x.Form.Replace("-", "") == name) && !x.Traded),
             };
 
             HashSet<string> count = new(), countSh = new();
@@ -623,7 +621,7 @@ namespace SysBot.Pokemon.Discord
 
                 id = id.ToLower();
                 action = action.ToLower();
-                if (!int.TryParse(id, out _) && id != "all")
+                if (!int.TryParse(id, out int _id) && id != "all")
                 {
                     await Context.Message.Channel.SendMessageAsync("Please enter a numerical catch ID.").ConfigureAwait(false);
                     return false;
@@ -632,7 +630,7 @@ namespace SysBot.Pokemon.Discord
                 string speciesString = string.Empty;
                 bool deposit = action == "d" || action == "deposit";
                 bool withdraw = action == "w" || action == "withdraw";
-                var match = deposit ? TCInfo.Catches.FirstOrDefault(x => x.ID == int.Parse(id) && !x.Traded) : null;
+                var match = deposit ? TCInfo.Catches.FirstOrDefault(x => x.ID == _id && !x.Traded) : null;
                 if (deposit && match == null)
                 {
                     await Context.Message.Channel.SendMessageAsync("There is no Pokémon with this ID.").ConfigureAwait(false);
@@ -770,7 +768,7 @@ namespace SysBot.Pokemon.Discord
                 receivingUser.Catches.Add(new() { Ball = match.Ball, Egg = match.Egg, Form = match.Form, ID = newID, Shiny = match.Shiny, Species = match.Species, Path = newPath, Traded = false });
                 var specID = SpeciesName.GetSpeciesID(match.Species);
                 string dexEntry = "";
-                if (receivingUser.DexCompletionCount == 0 && !receivingUser.Dex.Contains(specID))
+                if (receivingUser.DexCompletionCount < 10 && !receivingUser.Dex.Contains(specID))
                 {
                     receivingUser.Dex.Add(specID);
                     dexEntry = $"\n{Context.Message.MentionedUsers.First().Username} registered a new entry to the Pokédex!";
@@ -872,7 +870,7 @@ namespace SysBot.Pokemon.Discord
 
             if (TCInfo.Favorites.Count == 0)
             {
-                await Context.Message.Channel.SendMessageAsync($"You don't have anything in favorites yet!").ConfigureAwait(false);
+                await Context.Message.Channel.SendMessageAsync("You don't have anything in favorites yet!").ConfigureAwait(false);
                 return;
             }
 
@@ -902,7 +900,6 @@ namespace SysBot.Pokemon.Discord
                 if (!int.TryParse(id, out int _id))
                 {
                     await Context.Message.Channel.SendMessageAsync("Please enter a numerical catch ID.").ConfigureAwait(false);
-                    TradeExtensions.CommandInProgress.RemoveAll(x => x == TCInfo.UserID);
                     return false;
                 }
 
@@ -910,7 +907,6 @@ namespace SysBot.Pokemon.Discord
                 if (match == null)
                 {
                     await Context.Message.Channel.SendMessageAsync("Cannot find this Pokémon.").ConfigureAwait(false);
-                    TradeExtensions.CommandInProgress.RemoveAll(x => x == TCInfo.UserID);
                     return false;
                 }
 
@@ -935,35 +931,168 @@ namespace SysBot.Pokemon.Discord
 
         [Command("TradeCordDex")]
         [Alias("dex")]
-        [Summary("Show missing dex entries and dex stats.")]
+        [Summary("Show missing dex entries, dex stats, boosted species.")]
         [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
-        public async Task TradeCordDex([Summary("Optional parameter \"Missing\" for missing entries.")] string mode = "")
+        public async Task TradeCordDex([Summary("Optional parameter \"missing\" for missing entries.")] string input = "")
         {
             if (!await TradeCordParanoiaChecks(Context, false).ConfigureAwait(false))
                 return;
 
             var embed = new EmbedBuilder { Color = Color.DarkBlue };
-            var name = $"{Context.User.Username}'s {(mode.ToLower() == "missing" ? "Missing Entries" : "Dex Info")}";
-            var value = $"\n**Pokédex:** {TCInfo.Dex.Count}/664" +
-                $"\n**Pokédex Completion Count:** {TCInfo.DexCompletionCount}";
-            if (mode.ToLower() == "missing")
+            if (TCInfo.DexCompletionCount >= 1)
+                embed.WithFooter(new EmbedFooterBuilder { Text = $"You have {TCInfo.DexCompletionCount} unused {(TCInfo.DexCompletionCount == 1 ? "perk" : "perks")}!\nType \"{Info.Hub.Config.Discord.CommandPrefix}perks\" to view available perk names!" });
+
+            var enumVals = (int[])Enum.GetValues(typeof(Gen8Dex));
+            var name = $"{Context.User.Username}'s {(input.ToLower() == "missing" ? "Missing Entries" : "Dex Info")}";
+            var speciesBoost = TCInfo.SpeciesBoost != 0 ? $"\n**Pokémon Boost:** {SpeciesName.GetSpeciesNameGeneration(TCInfo.SpeciesBoost, 2, 8)}" : "\n**Pokémon Boost:** N/A";
+            var value = $"\n**Pokédex:** {TCInfo.Dex.Count}/{enumVals.Length}\n**Level:** {TCInfo.DexCompletionCount + TCInfo.ActivePerks.Count}{speciesBoost}";
+
+            if (input.ToLower() == "missing")
             {
                 List<string> missing = new();
-                var indexes = Zukan8.GetRawIndexes(PersonalTable.SWSH, 3);
-                foreach (var entry in indexes)
+                foreach (var entry in enumVals)
                 {
-                    if (!TCInfo.Dex.Contains(entry.Species))
-                        missing.Add(SpeciesName.GetSpeciesNameGeneration(entry.Species, 2, 8));
+                    if (!TCInfo.Dex.Contains(entry))
+                        missing.Add(SpeciesName.GetSpeciesNameGeneration(entry, 2, 8));
                 }
 
-                var missingForeign = TradeExtensions.Foreign.Except(TCInfo.Dex);
-                foreach (var entry in missingForeign)
-                    missing.Add(SpeciesName.GetSpeciesNameGeneration(entry, 2, 8));
-
-                missing = missing.Distinct().ToList();
                 value = string.Join(", ", missing.OrderBy(x => x));
+                await ListUtil(name, value).ConfigureAwait(false);
+                return;
             }
-            await ListUtil(name, value).ConfigureAwait(false);
+            await EmbedUtil(embed, name, value).ConfigureAwait(false);
+        }
+
+        [Command("TradeCordDexPerks")]
+        [Alias("dexperks", "perks")]
+        [Summary("Display and use available Dex completion perks.")]
+        [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
+        public async Task TradeCordDexPerks([Summary("Optional perk name(s) to add, or \"clear\" to remove all perks.")][Remainder] string input = "")
+        {
+            async Task<bool> FuncDexPerks()
+            {
+                if (!await TradeCordParanoiaChecks(Context).ConfigureAwait(false))
+                    return false;
+
+                if (input == "" && (TCInfo.DexCompletionCount > 0 || TCInfo.ActivePerks.Count > 0))
+                {
+                    var embed = new EmbedBuilder { Color = Color.DarkBlue };
+                    if (TCInfo.DexCompletionCount >= 1)
+                        embed.WithFooter(new EmbedFooterBuilder { Text = $"You have {TCInfo.DexCompletionCount} unused {(TCInfo.DexCompletionCount == 1 ? "perk" : "perks")}!" });
+
+                    var embedName = $"{Context.User.Username}'s Perk List";
+                    var msg = $"**CatchBoost:** {TCInfo.ActivePerks.FindAll(x => x == DexPerks.CatchBoost).Count}\n" +
+                              $"**EggBoost:** {TCInfo.ActivePerks.FindAll(x => x == DexPerks.EggRateBoost).Count}\n" +
+                              $"**ShinyBoost:** {TCInfo.ActivePerks.FindAll(x => x == DexPerks.ShinyBoost).Count}\n" +
+                              $"**SpeciesBoost:** {TCInfo.ActivePerks.FindAll(x => x == DexPerks.SpeciesBoost).Count}\n" +
+                              $"**GmaxBoost:** {TCInfo.ActivePerks.FindAll(x => x == DexPerks.GmaxBoost).Count}\n" +
+                              $"**CherishBoost:** {TCInfo.ActivePerks.FindAll(x => x == DexPerks.CherishBoost).Count}";
+
+                    await EmbedUtil(embed, embedName, msg).ConfigureAwait(false);
+                    return true;
+                }
+                else if (input.ToLower() == "clear")
+                {
+                    TCInfo.DexCompletionCount += TCInfo.ActivePerks.Count;
+                    TCInfo.ActivePerks = new();
+                    TCInfo.SpeciesBoost = 0;
+                    await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
+                    await Context.Message.Channel.SendMessageAsync($"{Context.User.Username}, all active perks cleared!").ConfigureAwait(false);
+                    return true;
+                }
+
+                if (TCInfo.DexCompletionCount == 0)
+                {
+                    await Context.Message.Channel.SendMessageAsync($"{Context.User.Username}, no perks available. Unassign a perk or complete the Dex to get more!").ConfigureAwait(false);
+                    return false;
+                }
+
+                List<string> perkList = input.Split(',', ' ').ToList();
+                perkList.RemoveAll(x => x == "");
+                if (perkList.Count > TCInfo.DexCompletionCount)
+                {
+                    await Context.Message.Channel.SendMessageAsync($"{Context.User.Username}, not enough points available to assign all requested perks.").ConfigureAwait(false);
+                    return false;
+                }
+
+                var enumVals = (DexPerks[])Enum.GetValues(typeof(DexPerks));
+                List<DexPerks> comp = new();
+                for (int i = 0; i < perkList.Count; i++)
+                {
+                    var comparison = perkList[i].ToLower();
+                    if (comparison.Contains("catch"))
+                        comp.Add(DexPerks.CatchBoost);
+                    else if (comparison.Contains("egg"))
+                        comp.Add(DexPerks.EggRateBoost);
+                    else if (comparison.Contains("shiny"))
+                        comp.Add(DexPerks.ShinyBoost);
+                    else if (comparison.Contains("species"))
+                        comp.Add(DexPerks.SpeciesBoost);
+                    else if (comparison.Contains("gmax"))
+                        comp.Add(DexPerks.GmaxBoost);
+                    else if (comparison.Contains("cherish"))
+                        comp.Add(DexPerks.CherishBoost);
+                }
+
+                if (comp.Count == 0)
+                {
+                    await Context.Message.Channel.SendMessageAsync($"{Context.User.Username}, perk input was not recognized.").ConfigureAwait(false);
+                    return false;
+                }
+
+                for (int i = 0; i < comp.Count; i++)
+                {
+                    if (TCInfo.ActivePerks.FindAll(x => x == comp[i]).Count == 5)
+                    {
+                        await Context.Message.Channel.SendMessageAsync($"{Context.User.Username}, {comp[i]} is maxed out. Clear your active perks to re-assign them.").ConfigureAwait(false);
+                        return false;
+                    }
+
+                    TCInfo.ActivePerks.Add(comp[i]);
+                    TCInfo.DexCompletionCount -= 1;
+                }
+
+                await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
+                await Context.Message.Channel.SendMessageAsync($"{Context.User.Username}, {(perkList.Count > 1 ? "added all requested perks!" : "requested perk added!")}").ConfigureAwait(false);
+                return true;
+            }
+
+            if (!await FuncDexPerks().ConfigureAwait(false))
+                TradeExtensions.CommandInProgress.RemoveAll(x => x == TCInfo.UserID);
+        }
+
+        [Command("TradeCordSpeciesBoost")]
+        [Alias("boost", "b")]
+        [Summary("If set as an active perk, enter Pokémon species to boost appearance of.")]
+        [RequireQueueRole(nameof(DiscordManager.RolesTradeCord))]
+        public async Task TradeCordSpeciesBoost([Remainder] string input)
+        {
+            async Task<bool> FuncBoost()
+            {
+                if (!await TradeCordParanoiaChecks(Context).ConfigureAwait(false))
+                    return false;
+
+                if (!TCInfo.ActivePerks.Contains(DexPerks.SpeciesBoost))
+                {
+                    await Context.Message.Channel.SendMessageAsync($"{Context.User.Username}, the SpeciesBoost perk isn't active.").ConfigureAwait(false);
+                    return false;
+                }
+
+                input = ListNameSanitize(input).Replace("'", "").Replace("-", "").Replace(" ", "");
+                if (!Enum.TryParse(input, out Gen8Dex species))
+                {
+                    await Context.Message.Channel.SendMessageAsync($"{Context.User.Username}, entered species was not recognized.").ConfigureAwait(false);
+                    return false;
+                }
+
+                TCInfo.SpeciesBoost = (int)species;
+                await TradeExtensions.UpdateUserInfo(TCInfo).ConfigureAwait(false);
+                await Context.Message.Channel.SendMessageAsync($"{Context.User.Username}, catch chance for {species} was slightly boosted!").ConfigureAwait(false);
+                return true;
+            }
+
+            if (!await FuncBoost().ConfigureAwait(false))
+                TradeExtensions.CommandInProgress.RemoveAll(x => x == TCInfo.UserID);
         }
 
         private void TradeCordDump(string subfolder, PK8 pk, out int index)
@@ -1082,9 +1211,9 @@ namespace SysBot.Pokemon.Discord
 
             if (evo1 == 132 && evo2 == 132)
                 return true;
-            else if (evo1 == evo2 && TradeExtensions.ValidEgg.Contains(evo1))
+            else if (evo1 == evo2 && Enum.IsDefined(typeof(ValidEgg), evo1))
                 return true;
-            else if ((evo1 == 132 || evo2 == 132) && (TradeExtensions.ValidEgg.Contains(evo1) || TradeExtensions.ValidEgg.Contains(evo2)))
+            else if ((evo1 == 132 || evo2 == 132) && (Enum.IsDefined(typeof(ValidEgg), evo1) || Enum.IsDefined(typeof(ValidEgg), evo2)))
                 return true;
             else if ((evo1 == 29 && evo2 == 32) || (evo1 == 32 && evo2 == 29))
                 return true;
@@ -1314,7 +1443,7 @@ namespace SysBot.Pokemon.Discord
             TradeCordDump(TCInfo.UserID.ToString(), TCRng.EggPKM, out int indexEgg);
             EggIndex = indexEgg;
             EggEmbedMsg = $"&^&You got {(TCRng.EggPKM.IsShiny ? "a **shiny egg**" : "an egg")} from the daycare! Welcome, {(TCRng.EggPKM.IsShiny ? $"**{finalEggName}**" : $"{finalEggName}")}!";
-            if (TCInfo.DexCompletionCount < 5)
+            if (TCInfo.DexCompletionCount < 30)
                 DexCount(true);
 
             EggEmbedMsg += $"\n{DexMsg}";
@@ -1324,18 +1453,19 @@ namespace SysBot.Pokemon.Discord
         private void EventHandler()
         {
             string type = string.Empty;
+            var enumVals = (int[])Enum.GetValues(typeof(Gen8Dex));
             bool match;
             do
             {
                 while (TCRng.SpeciesRNG == 0)
-                    TCRng.SpeciesRNG = SpeciesRand(TradeCordPK(TradeExtensions.Random.Next(1, 899), out string res), res);
+                    TCRng.SpeciesRNG = enumVals[TradeExtensions.Random.Next(enumVals.Length)];
 
                 if (Info.Hub.Config.TradeCord.PokeEventType == PokeEventType.EventPoke)
                     MGRngEvent = MysteryGiftRng();
 
                 if (Info.Hub.Config.TradeCord.PokeEventType != PokeEventType.Legends && Info.Hub.Config.TradeCord.PokeEventType != PokeEventType.EventPoke && Info.Hub.Config.TradeCord.PokeEventType != PokeEventType.PikaClones)
                 {
-                    var temp = TradeCordPK(TCRng.SpeciesRNG, out _);
+                    var temp = TradeCordPK(TCRng.SpeciesRNG);
                     for (int i = 0; i < temp.PersonalInfo.FormCount; i++)
                     {
                         temp.Form = i;
@@ -1348,7 +1478,7 @@ namespace SysBot.Pokemon.Discord
 
                 match = Info.Hub.Config.TradeCord.PokeEventType switch
                 {
-                    PokeEventType.Legends => TradeExtensions.Legends.Contains(TCRng.SpeciesRNG),
+                    PokeEventType.Legends => Enum.IsDefined(typeof(Legends), TCRng.SpeciesRNG),
                     PokeEventType.PikaClones => TradeExtensions.PikaClones.Contains(TCRng.SpeciesRNG),
                     PokeEventType.EventPoke => MGRngEvent != default,
                     _ => type == Info.Hub.Config.TradeCord.PokeEventType.ToString(),
@@ -1400,16 +1530,22 @@ namespace SysBot.Pokemon.Discord
             var form = nidoranGender != string.Empty ? nidoranGender : TradeExtensions.FormOutput(TCRng.CatchPKM.Species, TCRng.CatchPKM.Form, out _);
             var finalName = speciesName + form;
             var pokeImg = TradeExtensions.PokeImg(TCRng.CatchPKM, TCRng.CatchPKM.CanGigantamax, Hub.Config.TradeCord.UseFullSizeImages);
-            var ballImg = $"https://serebii.net/itemdex/sprites/pgl/{((Ball)TCRng.CatchPKM.Ball).ToString().ToLower()}ball.png";
+            var ballImg = $"https://raw.githubusercontent.com/BakaKaito/HomeImages/main/Ballimg/50x50/{((Ball)TCRng.CatchPKM.Ball).ToString().ToLower()}ball.png";
             var desc = $"You threw {(TCRng.CatchPKM.Ball == 2 ? "an" : "a")} {(Ball)TCRng.CatchPKM.Ball} Ball at a {(TCRng.CatchPKM.IsShiny ? $"**shiny** wild **{finalName}**" : $"wild {finalName}")}...";
             var catchName = $"Results{(EggEmbedMsg != string.Empty ? "&^&\nEggs" : "")}";
             var catchMsg = $"It put up a fight, but you caught {(TCRng.CatchPKM.IsShiny ? $"**{finalName}**" : $"{finalName}")}!";
-            if (TCInfo.DexCompletionCount < 5)
+            if (TCInfo.DexCompletionCount < 30)
                 DexCount(EggEmbedMsg != "");
 
             catchMsg += $"\n{DexMsg}";
             catchMsg += $"\n{EggEmbedMsg}";
             var author = new EmbedAuthorBuilder { Name = $"{Context.User.Username}'s Catch" };
+            if (!Hub.Config.TradeCord.UseLargerPokeBalls)
+            {
+                author.IconUrl = ballImg;
+                ballImg = "";
+            }
+
             var footer = new EmbedFooterBuilder { Text = $"Catch {TCInfo.CatchCount} | Pokémon ID {index}{(EggIndex == -1 ? "" : $" | Egg ID {EggIndex}")}" };
             var embed = new EmbedBuilder
             {
@@ -1434,7 +1570,7 @@ namespace SysBot.Pokemon.Discord
             var desc = $"You threw {(ball == Ball.Ultra ? "an" : "a")} {(ball == Ball.Cherish ? Ball.Poke : ball)} Ball at a wild {(spookyRng >= 90 ? "...whatever that thing is" : SpeciesName.GetSpeciesNameGeneration(TCRng.SpeciesRNG, 2, 8))}...";
             var failName = $"Results{(EggEmbedMsg != string.Empty ? "&^&\nEggs" : "")}";
             var failMsg =  $"{(spookyRng >= 90 ? "One wiggle... Two... It breaks free and stares at you, smiling. You run for dear life." : "...but it managed to escape!")}";
-            if (TCInfo.DexCompletionCount < 5)
+            if (TCInfo.DexCompletionCount < 30)
                 DexCount(EggEmbedMsg != "");
 
             failMsg += $"\n{DexMsg}";
@@ -1463,12 +1599,22 @@ namespace SysBot.Pokemon.Discord
             if (hatched)
                 TCInfo.Dex.Add(TCRng.EggPKM.Species);
             DexMsg = caught || hatched ? "Registered to the Pokédex." : "";
-            if (TCInfo.Dex.Count == 664 && TCInfo.DexCompletionCount < 5)
+            if (TCInfo.Dex.Count == 664 && TCInfo.DexCompletionCount < 30)
             {
                 TCInfo.Dex.Clear();
                 TCInfo.DexCompletionCount += 1;
-                DexMsg += TCInfo.DexCompletionCount < 5 ? " Shiny Charm improved!" : " Shiny Charm is now fully upgraded!";
+                DexMsg += TCInfo.DexCompletionCount < 30 ? " Level increased!" : " Highest level achieved!";
             }
+        }
+
+        private void PerkBoostApplicator()
+        {
+            TCRng.CatchRNG += TCInfo.ActivePerks.FindAll(x => x == DexPerks.CatchBoost).Count;
+            TCRng.CherishRNG += TCInfo.ActivePerks.FindAll(x => x == DexPerks.CherishBoost).Count * 2;
+            TCRng.GmaxRNG += TCInfo.ActivePerks.FindAll(x => x == DexPerks.GmaxBoost).Count * 2;
+            TCRng.EggRNG += TCInfo.ActivePerks.FindAll(x => x == DexPerks.EggRateBoost).Count * 2;
+            TCRng.ShinyRNG += TCInfo.ActivePerks.FindAll(x => x == DexPerks.ShinyBoost).Count * 2;
+            TCRng.EggShinyRNG += TCInfo.ActivePerks.FindAll(x => x == DexPerks.ShinyBoost).Count * 2;
         }
 
         public static async Task<bool> TrollAsync(SocketCommandContext context, bool invalid, IBattleTemplate set, bool itemTrade = false)
@@ -1479,7 +1625,7 @@ namespace SysBot.Pokemon.Discord
             if (path.Length == 0)
                 path = new string[] { "https://i.imgur.com/qaCwr09.png" }; //If memes enabled but none provided, use a default one.
 
-            if (invalid || !ItemRestrictions.IsHeldItemAllowed(set.HeldItem, 8) || noItem || (set.Nickname.ToLower() == "egg" && !TradeExtensions.ValidEgg.Contains(set.Species)))
+            if (invalid || !ItemRestrictions.IsHeldItemAllowed(set.HeldItem, 8) || noItem || (set.Nickname.ToLower() == "egg" && !Enum.IsDefined(typeof(ValidEgg), set.Species)))
             {
                 var msg = $"Oops! I wasn't able to create that {GameInfo.Strings.Species[set.Species]}. Here's a meme instead!\n";
                 if (noItem)
@@ -1491,7 +1637,6 @@ namespace SysBot.Pokemon.Discord
             return false;
         }
 
-        private int SpeciesRand(PK8 pk, string res) => res == "Regenerated" && (pk.FatefulEncounter || !pk.IsNicknamed) ? pk.Species : 0;
-        private PK8 TradeCordPK(int species, out string res) => (PK8)AutoLegalityWrapper.GetTrainerInfo(8).GetLegal(AutoLegalityWrapper.GetTemplate(new ShowdownSet(SpeciesName.GetSpeciesNameGeneration(species, 2, 8))), out res);
+        private PK8 TradeCordPK(int species) => (PK8)AutoLegalityWrapper.GetTrainerInfo(8).GetLegal(AutoLegalityWrapper.GetTemplate(new ShowdownSet(SpeciesName.GetSpeciesNameGeneration(species, 2, 8))), out _);
     }
 }
