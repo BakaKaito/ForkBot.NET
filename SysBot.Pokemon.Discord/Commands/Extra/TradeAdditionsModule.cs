@@ -500,8 +500,8 @@ namespace SysBot.Pokemon.Discord
 
                 IEnumerable<TradeExtensions.TCUserInfoRoot.Catch> matches;
                 var list = TCInfo.Catches.ToList();
-                if (species.ToLower() == "cherish")
-                    matches = list.FindAll(x => !x.Traded && !x.Shiny && x.Ball == "Cherish" && x.Species != "Ditto" && x.ID != TCInfo.Daycare1.ID && x.ID != TCInfo.Daycare2.ID && TCInfo.Favorites.FirstOrDefault(z => z == x.ID) == default);
+                if (Enum.TryParse(species.Substring(0, 1).ToUpper() + species.Substring(1).ToLower(), out Ball ball))
+                    matches = list.FindAll(x => !x.Traded && !x.Shiny && x.Ball == ball.ToString() && x.Species != "Ditto" && x.ID != TCInfo.Daycare1.ID && x.ID != TCInfo.Daycare2.ID && TCInfo.Favorites.FirstOrDefault(z => z == x.ID) == default);
                 else if (species.ToLower() == "shiny")
                     matches = list.FindAll(x => !x.Traded && x.Shiny && x.Ball != "Cherish" && x.Species != "Ditto" && x.ID != TCInfo.Daycare1.ID && x.ID != TCInfo.Daycare2.ID && TCInfo.Favorites.FirstOrDefault(z => z == x.ID) == default);
                 else if (species != "")
