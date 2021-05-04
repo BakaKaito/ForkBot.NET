@@ -1,7 +1,7 @@
 ﻿using Discord;
 using Discord.WebSocket;
 using PKHeX.Core;
-using System.Linq;
+using System;
 using System.Threading.Tasks;
 
 namespace SysBot.Pokemon.Discord
@@ -18,7 +18,7 @@ namespace SysBot.Pokemon.Discord
 
             var template = AutoLegalityWrapper.GetTemplate(set);
             var pkm = sav.GetLegal(template, out var result);
-            if (pkm.Nickname.ToLower() == "egg" && TradeExtensions.ValidEgg.Contains(pkm.Species))
+            if (pkm.Nickname.ToLower() == "egg" && Enum.IsDefined(typeof(ValidEgg), pkm.Species))
                 TradeExtensions.EggTrade((PK8)pkm);
 
             var la = new LegalityAnalysis(pkm);

@@ -20,69 +20,30 @@ namespace SysBot.Pokemon
         public static readonly List<ulong> CommandInProgress = new();
         private static readonly List<ulong> GiftInProgress = new();
         public static List<string> TradeCordPath = new();
-        public static List<string> TradeCordCooldown = new();
+        public static HashSet<string> TradeCordCooldown = new();
         private static readonly string InfoPath = "TradeCord\\UserInfo.json";
         public static TCUserInfoRoot UserInfo = GetRoot<TCUserInfoRoot>(InfoPath);
         public static int XCoordStart = 0;
         public static int YCoordStart = 0;
 
         public static uint AlcremieDecoration { get => BitConverter.ToUInt32(Data, 0xE4); set => BitConverter.GetBytes(value).CopyTo(Data, 0xE4); }
-        public static int[] ValidEgg =
-                { 1, 4, 7, 10, 27, 29, 32, 37, 41, 43, 50, 52, 54, 58, 60, 63, 66, 72,
-                  77, 79, 81, 83, 90, 92, 95, 98, 102, 104, 108, 109, 111, 114, 115, 116,
-                  118, 120, 122, 123, 127, 128, 129, 131, 133, 137, 138, 140, 142, 147, 163,
-                  170, 172, 173, 174, 175, 177, 194, 206, 211, 213, 214, 215, 220, 222, 223,
-                  225, 227, 236, 238, 239, 240, 241, 246, 252, 255, 258, 263, 270, 273, 278,
-                  280, 290, 293, 298, 302, 303, 304, 309, 318, 320, 324, 328, 333, 337, 338,
-                  339, 341, 343, 345, 347, 349, 355, 359, 360, 361, 363, 369, 371, 374, 403,
-                  406, 415, 420, 422, 425, 427, 434, 436, 438, 439, 440, 442, 443, 446, 447,
-                  449, 451, 453, 458, 459, 479, 506, 509, 517, 519, 524, 527, 529, 531, 532,
-                  535, 538, 539, 543, 546, 548, 550, 551, 554, 556, 557, 559, 561, 562, 564,
-                  566, 568, 570, 572, 574, 577, 582, 587, 588, 590, 592, 595, 597, 599, 605,
-                  607, 610, 613, 615, 616, 618, 619, 621, 622, 624, 626, 627, 629, 631, 632,
-                  633, 636, 659, 661, 674, 677, 679, 682, 684, 686, 688, 690, 692, 694, 696,
-                  698, 701, 702, 703, 704, 707, 708, 710, 712, 714, 722, 725, 728, 736, 742,
-                  744, 746, 747, 749, 751, 753, 755, 757, 759, 761, 764, 765, 766, 767, 769,
-                  771, 776, 777, 778, 780, 781, 782, 810, 813, 816, 819, 821, 824, 827, 829,
-                  831, 833, 835, 837, 840, 843, 845, 846, 848, 850, 852, 854, 856, 859, 868,
-                  870, 871, 872, 874, 875, 876, 877, 878, 884, 885 };
 
-        public static int[] GenderDependent = { 3, 12, 19, 20, 25, 26, 41, 42, 44, 45, 64, 65, 84, 85, 97, 111, 112, 118, 119, 123, 129, 130, 133,
-                                                178, 185, 186, 194, 195, 202, 208, 212, 214, 215, 221, 224,
-                                                255, 256, 257, 272, 274, 275, 315, 350, 369,
-                                                403, 404, 405, 407, 415, 443, 444, 445, 449, 450, 453, 454, 459, 460, 461, 464, 465, 473,
-                                                521, 592, 593,
-                                                668 };
-
-        public static int[] Legends = { 144, 145, 146, 150, 151,
-                                        243, 244, 245, 249, 250, 251,
-                                        377, 378, 379, 380, 381, 382, 383, 384, 385,
-                                        480, 481, 482, 483, 484, 485, 486, 487, 488,
-                                        494, 638, 639, 640, 641, 642, 643, 644, 645, 646, 647, 649,
-                                        716, 717, 718, 719, 721,
-                                        772, 773, 785, 786, 787, 788, 789, 790, 791, 792, 793, 794, 795, 796, 797, 798, 799, 800, 801, 802, 803, 804, 805, 806, 807, 808, 809,
-                                        888, 889, 890, 891, 892, 893, 894, 895, 896, 897, 898 };
-
-        public static int[] PikaClones = { 25, 26, 172, 587, 702, 777, 877 };
-
+        public static int[] TradeEvo = { (int)Species.Machoke, (int)Species.Haunter, (int)Species.Boldore, (int)Species.Gurdurr, (int)Species.Phantump, (int)Species.Gourgeist };
         public static int[] ShinyLock = { (int)Species.Victini, (int)Species.Keldeo, (int)Species.Volcanion, (int)Species.Cosmog, (int)Species.Cosmoem, (int)Species.Magearna,
                                           (int)Species.Marshadow, (int)Species.Zacian, (int)Species.Zamazenta, (int)Species.Eternatus, (int)Species.Kubfu, (int)Species.Urshifu,
                                           (int)Species.Zarude, (int)Species.Glastrier, (int)Species.Spectrier, (int)Species.Calyrex };
 
-        public static int[] Foreign = { 150, 151, 243, 244, 245, 249, 250, 251, 252, 253, 254, 255, 256, 257, 258, 259, 260, 380, 381, 382, 383, 384, 385, 480, 481, 482, 483, 484, 485, 486, 487, 488, 494,
-                                        641, 642, 643, 644, 645, 646, 647, 649, 716, 717, 718, 719, 721, 722, 723, 724, 725, 726, 727, 728, 729, 730, 785, 786, 787, 788, 789, 790, 791, 792, 793, 794, 795,
-                                        796, 797, 798, 799, 800, 801, 802, 803, 804, 805, 806, 807, 808, 809 };
-
-        public static int[] TradeEvo = { (int)Species.Machoke, (int)Species.Haunter, (int)Species.Boldore, (int)Species.Gurdurr, (int)Species.Phantump, (int)Species.Gourgeist };
-        public static string[] PartnerPikachuHeadache = { "-Original", "-Partner", "-Hoenn", "-Sinnoh", "-Unova", "-Alola", "-Kalos", "-World" };
-        public static string[] LGPEBalls = { "Poke", "Premier", "Great", "Ultra", "Master" };
-        public static int[] CherishOnly = { 251, 385, 494, 649, 719, 721, 801, 802, 807, 893 };
+        public static int[] PikaClones = { 25, 26, 172, 587, 702, 777, 877 };
+        public static int[] CherishOnly = { 719, 721, 801, 802, 807, 893 };
         public static int[] Pokeball = { 151, 722, 723, 724, 725, 726, 727, 728, 729, 730, 772, 773, 789, 790, 810, 811, 812, 813, 814, 815, 816, 817, 818, 891, 892 };
         public static int[] GalarFossils = { 880, 881, 882, 883 };
         public static int[] SilvallyMemory = { 0, 904, 905, 906, 907, 908, 909, 910, 911, 912, 913, 914, 915, 916, 917, 918, 919, 920 };
         public static int[] GenesectDrives = { 0, 116, 117, 118, 119 };
         public static int[] Amped = { 3, 4, 2, 8, 9, 19, 22, 11, 13, 14, 0, 6, 24 };
         public static int[] LowKey = { 1, 5, 7, 10, 12, 15, 16, 17, 18, 20, 21, 23 };
+
+        public static string[] PartnerPikachuHeadache = { "-Original", "-Partner", "-Hoenn", "-Sinnoh", "-Unova", "-Alola", "-Kalos", "-World" };
+        public static string[] LGPEBalls = { "Poke", "Premier", "Great", "Ultra", "Master" };
         public static readonly string[] Characteristics =
         {
             "Takes plenty of siestas",
@@ -95,23 +56,25 @@ namespace SysBot.Pokemon
 
         public class TCRng
         {
-            private readonly int catchRng = Random.Next(101);
+            private int catchRng = Random.Next(101);
             private int shinyRng = Random.Next(101);
             private int eggShinyRng = Random.Next(101);
-            private readonly int eggRng = Random.Next(101);
-            private readonly int gmaxRng = Random.Next(101);
+            private int eggRng = Random.Next(101);
+            private int gmaxRng = Random.Next(101);
             private int cherishRng = Random.Next(101);
+            private readonly int speciesBoostRng = Random.Next(101);
             private int speciesRng = 0;
             private PK8 catchPKM = new();
             private PK8 eggPKM = new();
 
-            public int CatchRNG { get => catchRng; }
+            public int CatchRNG { get => catchRng; set => catchRng = value; }
             public int ShinyRNG { get => shinyRng; set => shinyRng = value; }
-            public int EggRNG { get => eggRng; }
+            public int EggRNG { get => eggRng; set => eggRng = value; }
             public int EggShinyRNG { get => eggShinyRng; set => eggShinyRng = value; }
-            public int GmaxRNG { get => gmaxRng; }
-            public int CherishRng { get => cherishRng; set => cherishRng = value; }
+            public int GmaxRNG { get => gmaxRng; set => gmaxRng = value; }
+            public int CherishRNG { get => cherishRng; set => cherishRng = value; }
             public int SpeciesRNG { get => speciesRng; set => speciesRng = value; }
+            public int SpeciesBoostRNG { get => speciesBoostRng; }
             public PK8 CatchPKM { get => catchPKM; set => catchPKM = value; }
             public PK8 EggPKM { get => eggPKM; set => eggPKM = value; }
         }
@@ -133,6 +96,8 @@ namespace SysBot.Pokemon
                 public string Language { get; set; } = "";
                 public HashSet<int> Dex { get; set; } = new();
                 public int DexCompletionCount { get; set; }
+                public List<DexPerks> ActivePerks { get; set; } = new();
+                public int SpeciesBoost { get; set; }
                 public HashSet<int> Favorites { get; set; } = new();
                 public HashSet<Catch> Catches { get; set; } = new();
             }
@@ -245,7 +210,8 @@ namespace SysBot.Pokemon
             }
 
             bool goMew = pkm.Species == (int)Species.Mew && enc.Version == GameVersion.GO && pkm.IsShiny;
-            pkm.IVs = goMew || pkm.FatefulEncounter ? pkm.IVs : enc.Version == GameVersion.GO ? pkm.SetRandomIVsGO() : enc is EncounterStatic8N && enc.LevelMin >= 35 ? pkm.SetRandomIVs(5) : enc is EncounterSlot8 || enc is EncounterStatic8U || enc is EncounterStatic8 ? pkm.SetRandomIVs(4) : pkm.SetRandomIVs(6);
+            bool goOther = (pkm.Species == (int)Species.Victini || pkm.Species == (int)Species.Jirachi || pkm.Species == (int)Species.Celebi || pkm.Species == (int)Species.Genesect) && enc.Version == GameVersion.GO;
+            pkm.IVs = goOther || goMew || pkm.FatefulEncounter ? pkm.IVs : enc.Version == GameVersion.GO ? pkm.SetRandomIVsGO() : enc is EncounterStatic8N && enc.LevelMin >= 35 ? pkm.SetRandomIVs(5) : enc is EncounterSlot8 || enc is EncounterStatic8U || enc is EncounterStatic8 ? pkm.SetRandomIVs(4) : pkm.SetRandomIVs(3);
             if (enc is EncounterStatic8)
             {
                 var criteria = EncounterCriteria.GetCriteria(template);
@@ -283,9 +249,10 @@ namespace SysBot.Pokemon
 
             var ballRng = $"\nBall: {(Ball)Random.Next(2, 27)}";
             var ballRngDC = Random.Next(1, 3);
-            bool specificEgg = (evo1 == evo2 && ValidEgg.Contains(evo1)) || ((evo1 == 132 || evo2 == 132) && (ValidEgg.Contains(evo1) || ValidEgg.Contains(evo2))) || ((evo1 == 29 || evo1 == 32) && (evo2 == 29 || evo2 == 32));
+            var enumVals = (int[])Enum.GetValues(typeof(ValidEgg));
+            bool specificEgg = (evo1 == evo2 && Enum.IsDefined(typeof(ValidEgg), evo1)) || ((evo1 == 132 || evo2 == 132) && (Enum.IsDefined(typeof(ValidEgg), evo1) || Enum.IsDefined(typeof(ValidEgg), evo2))) || ((evo1 == 29 || evo1 == 32) && (evo2 == 29 || evo2 == 32));
             var dittoLoc = DittoSlot(evo1, evo2);
-            var speciesRng = specificEgg ? SpeciesName.GetSpeciesNameGeneration(dittoLoc == 1 ? evo2 : evo1, 2, 8) : SpeciesName.GetSpeciesNameGeneration(ValidEgg[Random.Next(ValidEgg.Length)], 2, 8);
+            var speciesRng = specificEgg ? SpeciesName.GetSpeciesNameGeneration(dittoLoc == 1 ? evo2 : evo1, 2, 8) : SpeciesName.GetSpeciesNameGeneration(enumVals[Random.Next(enumVals.Length)], 2, 8);
             var speciesRngID = SpeciesName.GetSpeciesID(speciesRng);
             FormOutput(speciesRngID, 0, out string[] forms);
 
@@ -450,7 +417,7 @@ namespace SysBot.Pokemon
             formString = FormConverter.GetFormList(species, strings.Types, strings.forms, GameInfo.GenderSymbolASCII, 8);
             _ = formString.Length == form && form != 0 ? form -= 1 : form;
 
-            if (formString[form] == "Normal" || formString[form].Contains("-") && species != (int)Species.Zygarde || formString[form] == "")
+            if (form == 0)
                 return "";
             else return "-" + formString[form];
         }
@@ -583,11 +550,8 @@ namespace SysBot.Pokemon
             return user;
         }
 
-        public static async Task UpdateUserInfo(TCUserInfoRoot.TCUserInfo info, bool remove = true, bool gift = false)
+        public static void UpdateUserInfo(TCUserInfoRoot.TCUserInfo info, bool remove = true, bool gift = false)
         {
-            while (TCRWLockEnable)
-                await Task.Delay(0_100).ConfigureAwait(false);
-
             UserInfo.Users.RemoveWhere(x => x.UserID == info.UserID);
             UserInfo.Users.Add(info);
             if (remove)
@@ -668,13 +632,17 @@ namespace SysBot.Pokemon
             }
         }
 
-        public static string PokeImg(PKM pkm, bool canGmax)
+        public static string PokeImg(PKM pkm, bool canGmax, bool fullSize)
         {
             var alcremieDeco = (uint)(pkm.Species == (int)Species.Alcremie ? pkm.Data[0xE4] : 0);
             bool md = false;
             bool fd = false;
-            var baseLink = "https://raw.githubusercontent.com/BakaKaito/HomeImages/main/homeimg/128x128/poke_capture_0001_000_mf_n_00000000_f_n.png".Split('_');
-            if (GenderDependent.Contains(pkm.Species) && !canGmax && pkm.Form == 0)
+            string[] baseLink;
+            if (fullSize)
+                baseLink = "https://projectpokemon.org/images/sprites-models/homeimg/poke_capture_0001_000_mf_n_00000000_f_n.png".Split('_');
+            else baseLink = "https://raw.githubusercontent.com/BakaKaito/HomeImages/main/homeimg/128x128/poke_capture_0001_000_mf_n_00000000_f_n.png".Split('_');
+
+            if (Enum.IsDefined(typeof(GenderDependent), pkm.Species) && !canGmax && pkm.Form == 0)
             {
                 if (pkm.Gender == 0)
                     md = true;
