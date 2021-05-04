@@ -1568,8 +1568,8 @@ namespace SysBot.Pokemon.Discord
             var pokeImg = TradeExtensions.PokeImg(TCRng.CatchPKM, TCRng.CatchPKM.CanGigantamax, Hub.Config.TradeCord.UseFullSizeImages);
             var ballImg = $"https://raw.githubusercontent.com/BakaKaito/HomeImages/main/Ballimg/50x50/{((Ball)TCRng.CatchPKM.Ball).ToString().ToLower()}ball.png";
             var desc = $"You threw {(TCRng.CatchPKM.Ball == 2 ? "an" : "a")} {(Ball)TCRng.CatchPKM.Ball} Ball at a {(TCRng.CatchPKM.IsShiny ? $"**shiny** wild **{finalName}**" : $"wild {finalName}")}...";
-            var catchName = Results: Success!" + $"{(EggEmbedMsg != string.Empty ? "&^&\nDaycare" : "")}";
-            var catchMsg = $"You caught a {(TCRng.CatchPKM.IsShiny ? $"**{finalName}**" : $"{finalName}")}!";
+            var catchName = "Results: Success!" + $"{(EggEmbedMsg != string.Empty ? "&^&\nDaycare" : "")}";
+            var catchMsg = $"You caught the {(TCRng.CatchPKM.IsShiny ? $"**{finalName}**" : $"{finalName}")}!";
             if (TCInfo.DexCompletionCount < 30)
                 DexCount(TCInfo, EggEmbedMsg != "");
 
@@ -1606,14 +1606,14 @@ namespace SysBot.Pokemon.Discord
             var ball = (Ball)TradeExtensions.Random.Next(2, 26);
             var desc = $"You threw {(ball == Ball.Ultra ? "an" : "a")} {(ball == Ball.Cherish ? Ball.Poke : ball)} Ball at a wild {(spookyRng >= 90 ? "...whatever that thing is" : SpeciesName.GetSpeciesNameGeneration(TCRng.SpeciesRNG, 2, 8))}...";
             var failName = $"Results: No Luck{(EggEmbedMsg != string.Empty ? "&^&\nEggs" : "")}";
-            var failMsg =  $"{(spookyRng >= 90 ? "One wiggle... Two... It breaks free and stares at you, smiling. You run for dear life." : "...but it managed to escape!")}";
+            var failMsg =  $"{(spookyRng >= 90 ? "One wiggle... Two... It breaks free and stares at you, smiling. You run for dear life." : "It managed to escape!")}";
             if (TCInfo.DexCompletionCount < 30)
                 DexCount(TCInfo, EggEmbedMsg != "");
 
             failMsg += $"\n{DexMsg}";
             failMsg += $"\n{EggEmbedMsg}";
             var author = new EmbedAuthorBuilder { Name = $"{Context.User.Username}'s Catch"};
-            var footer = new EmbedFooterBuilder { Text = $"{(spookyRng >= 90 ? $"You never look back... {(EggIndex != -1 ? $"Egg ID {EggIndex}" : "")}" : EggIndex != -1 ? $"Egg ID {EggIndex}" : "")}" };
+            var footer = new EmbedFooterBuilder { Text = $"{(spookyRng >= 90 ? $"You'll have Nightmares for days... {(EggIndex != -1 ? $"| Egg ID {EggIndex}" : "")}" : $"Better luck next time {(EggIndex != -1 ? $"| Egg ID {EggIndex}" : "")}")}" };
             var embedFail = new EmbedBuilder
             {
                 Color = Color.Teal,
@@ -1663,7 +1663,7 @@ namespace SysBot.Pokemon.Discord
             if (path.Length == 0)
                 path = new string[] { "https://i.imgur.com/qaCwr09.png" }; //If memes enabled but none provided, use a default one.
 
-            if (invalid || !ItemRestrictions.IsHeldItemAllowed(set.HeldItem, 8) || (set.Nickname.ToLower() == "egg" && !TradeExtensions.ValidEgg.Contains(set.Species)))
+            if (invalid || !ItemRestrictions.IsHeldItemAllowed(set.HeldItem, 8) || (set.Nickname.ToLower() == "egg" && !Enum.IsDefined(typeof(ValidEgg), set.Species)))
             {
                 var msg = $"Oops! I wasn't able to create that {GameInfo.Strings.Species[set.Species]}. Here's a meme instead!\n";
                 if (noItem)

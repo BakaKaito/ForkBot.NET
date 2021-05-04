@@ -211,7 +211,7 @@ namespace SysBot.Pokemon
 
             bool goMew = pkm.Species == (int)Species.Mew && enc.Version == GameVersion.GO && pkm.IsShiny;
             bool goOther = (pkm.Species == (int)Species.Victini || pkm.Species == (int)Species.Jirachi || pkm.Species == (int)Species.Celebi || pkm.Species == (int)Species.Genesect) && enc.Version == GameVersion.GO;
-            pkm.IVs = goOther || goMew || pkm.FatefulEncounter ? pkm.IVs : enc.Version == GameVersion.GO ? pkm.SetRandomIVsGO() : enc is EncounterStatic8N && enc.LevelMin >= 35 ? pkm.SetRandomIVs(5) : enc is EncounterSlot8 || enc is EncounterStatic8U || enc is EncounterStatic8 ? pkm.SetRandomIVs(4) : pkm.SetRandomIVs(3);
+            pkm.IVs = goOther || goMew || pkm.FatefulEncounter ? pkm.IVs : enc.Version == GameVersion.GO ? pkm.SetRandomIVsGO() : enc is EncounterStatic8N && enc.LevelMin >= 35 ? pkm.SetRandomIVs(5) : enc is EncounterSlot8 || enc is EncounterStatic8U || enc is EncounterStatic8 ? pkm.SetRandomIVs(4) : pkm.SetRandomIVs(6);
             if (enc is EncounterStatic8)
             {
                 var criteria = EncounterCriteria.GetCriteria(template);
